@@ -137,10 +137,18 @@ export const useAnalysisRunStore = defineStore('analysisRun', {
 
     async submitClarification(fieldId, value) {
       if (!this.runId) return
-      const result = await api.submitClarification(this.runId, { field_id: fieldId, value })
-      await this.hydrate(this.runId)
-      if (result.status === 'resumed' && this.isRunning) this.connect()
-      return result
+      this.error = null
+      if (this.snapshot) this.snapshot.status = 'planning'
+      try {
+        const result = await api.submitClarification(this.runId, { field_id: fieldId, value })
+        await this.hydrate(this.runId)
+        if (result.status === 'resumed' && this.isRunning) this.connect()
+        return result
+      } catch (error) {
+        await this.hydrate(this.runId)
+        this.error = error.message
+        throw error
+      }
     },
 
     async cancel() {

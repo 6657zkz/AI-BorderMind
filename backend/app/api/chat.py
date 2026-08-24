@@ -20,8 +20,9 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from ..db import AnalysisRun, SessionLocal, get_db
+from ..db import AnalysisClarification, AnalysisRun, SessionLocal, get_db
 from ..evidence import (
+    answer_clarification,
     complete_analysis_run,
     create_analysis_run,
     fail_analysis_run,
@@ -29,7 +30,7 @@ from ..evidence import (
 )
 from ..graph import workflow
 from ..project import apply_product, apply_profile_field, apply_scope, parse_scope, parse_target_margin, top_products
-from ..session import append_message, get_session, latest_pending_clarification, resolve_context, update_message
+from ..session import append_message, get_session, resolve_context, update_message
 from .schemas import ChatRequest
 
 logger = logging.getLogger("chuhai.api")
@@ -82,24 +83,27 @@ def _resolve_clarification_answer(
     session_id: str,
     message: str,
 ) -> tuple[dict[str, Any], str, str | None] | None:
-    pending = latest_pending_clarification(db, session_id)
-    if pending is None:
+    rows = db.execute(
+        select(AnalysisRun, AnalysisClarification)
+        .join(AnalysisClarification, AnalysisClarification.run_id == AnalysisRun.run_id)
+        .where(
+            AnalysisRun.session_id == session_id,
+            AnalysisRun.status == "waiting_clarification",
+            AnalysisClarification.status == "waiting",
+        )
+        .order_by(AnalysisRun.started_at.desc(), AnalysisClarification.id)
+    ).all()
+    if len(rows) != 1:
         return None
-    need, original_query = pending
-    if need.get("field_id") != "target_margin":
+    run, clarification = rows[0]
+    if clarification.field_id != "target_margin":
         return None
     target_margin = parse_target_margin(message)
     if target_margin is None:
         return None
     project_ctx = resolve_context(db, session_id)
     apply_profile_field(db, project_ctx["project_id"], "target_margin", target_margin)
-    run_id = db.execute(
-        select(AnalysisRun.run_id)
-        .where(AnalysisRun.session_id == session_id, AnalysisRun.status == "waiting_clarification")
-        .order_by(AnalysisRun.started_at.desc())
-        .limit(1)
-    ).scalar_one_or_none()
-    return resolve_context(db, session_id), original_query, run_id
+    return resolve_context(db, session_id), run.query, run.run_id
 
 
 def _resolve_scope(db: DbSession, session_id: str, message: str) -> tuple[dict[str, Any], str | None]:
@@ -164,6 +168,15 @@ def api_chat(body: ChatRequest, db: DbSession = Depends(get_db)):
         run = db.get(AnalysisRun, resumed_run_id)
         if run is None:
             raise HTTPException(status_code=409, detail="等待澄清的研判运行不存在")
+        answer = answer_clarification(
+            db,
+            run_id=run.run_id,
+            field_id="target_margin",
+            answer=body.message,
+            message_id=user_message.id,
+        )
+        if answer is None:
+            raise HTTPException(status_code=409, detail="该澄清项不存在或已处理")
         run.user_message_id = user_message.id
         run.project_context_json = project_ctx
         run.status = "planning"
@@ -224,6 +237,15 @@ async def api_chat_stream(body: ChatRequest, db: DbSession = Depends(get_db)):
             analysis_run = db.get(AnalysisRun, resumed_run_id)
             if analysis_run is None:
                 raise HTTPException(status_code=409, detail="等待澄清的研判运行不存在")
+            answer = answer_clarification(
+                db,
+                run_id=analysis_run.run_id,
+                field_id="target_margin",
+                answer=body.message,
+                message_id=user_message.id,
+            )
+            if answer is None:
+                raise HTTPException(status_code=409, detail="该澄清项不存在或已处理")
             analysis_run.user_message_id = user_message.id
             analysis_run.project_context_json = project_ctx
             analysis_run.status = "planning"
