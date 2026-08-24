@@ -119,6 +119,11 @@ def _resolve_scope(db: DbSession, session_id: str, message: str) -> tuple[dict[s
             project_ctx = resolve_context(db, session_id)
             acks.append(f"已确认研判范围：{scope['category_name']} · {scope.get('market_name') or scope['market_code']}")
 
+    target_margin = parse_target_margin(message)
+    if target_margin is not None:
+        apply_profile_field(db, project_ctx["project_id"], "target_margin", target_margin)
+        project_ctx = resolve_context(db, session_id)
+
     # 竞品级意图 + 无竞品 → 自动锁定类目头部竞品直接分析（不再反问「针对哪个」）
     product_ids = (project_ctx.get("profile") or {}).get("product_ids") or []
     if _product_level_intent(message) and project_ctx.get("category_id") and not product_ids:

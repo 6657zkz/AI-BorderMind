@@ -146,10 +146,10 @@ def apply_profile_field(db: Session, project_id: str, field_id: str, value: str)
 
 
 def parse_target_margin(message: str) -> str | None:
-    match = re.fullmatch(r"\s*(\d{1,2}(?:\.\d+)?)\s*%\s*", message)
-    if match is None:
+    matches = re.findall(r"(\d{1,2}(?:\.\d+)?)\s*%", message)
+    if not matches:
         return None
-    value = float(match.group(1))
+    value = float(matches[-1])
     if not 0 < value < 100:
         return None
     return f"{value:g}%"

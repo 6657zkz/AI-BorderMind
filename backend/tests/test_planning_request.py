@@ -42,6 +42,22 @@ def test_plan_request_compiles_registered_decision_type() -> None:
     assert planned.execution_plan.clarifications == []
 
 
+def test_plan_request_extracts_margin_from_original_query() -> None:
+    planned = plan_request(
+        "美国站 TWS 耳机怎么定价？我希望毛利 40%",
+        {"category_id": "cat_tws", "market_code": "US", "profile": {}},
+        llm=StubPlanner(
+            {
+                "title": "美国站 TWS 耳机定价评估",
+                "decision_types": ["pricing_strategy"],
+                "capabilities": [],
+                "entities": ["market", "category", "internal_sku"],
+                "metrics": ["cost_floor", "target_margin"],
+            }
+        ),
+    )
+
+    assert planned.execution_plan.clarifications == []
 def test_plan_request_returns_structured_margin_clarification() -> None:
     planned = plan_request(
         "美国站 TWS 耳机怎么定价？",

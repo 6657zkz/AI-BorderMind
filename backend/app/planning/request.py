@@ -45,6 +45,11 @@ def plan_request(
     profile = dict(project_ctx.get("profile") or {})
     if project_ctx.get("target_margin") not in (None, ""):
         profile["target_margin"] = project_ctx["target_margin"]
+    from ..project import parse_target_margin
+
+    query_margin = parse_target_margin(query)
+    if query_margin is not None:
+        profile["target_margin"] = query_margin
     return PlannedRequest(
         title=candidate["title"],
         decision_graph=graph,
