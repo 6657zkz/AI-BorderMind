@@ -28,14 +28,17 @@ def test_execute_plan_runs_ready_layer_in_parallel_and_injects_declared_dependen
     )
     starts: dict[str, float] = {}
     dependencies: dict[str, dict] = {}
+    events: list[dict] = []
     lock = threading.Lock()
 
     def run_node(plan_node: PlanNode, upstream: dict):
         with lock:
             starts[plan_node.id] = time.monotonic()
             dependencies[plan_node.id] = upstream
-        if plan_node.id in {"market", "cost"}:
-            time.sleep(0.08)
+        if plan_node.id == "market":
+            time.sleep(0.10)
+        elif plan_node.id == "cost":
+            time.sleep(0.02)
         return ExpertResult(
             role=plan_node.expert_role_id,
             conclusion={"node": plan_node.id},
@@ -48,6 +51,7 @@ def test_execute_plan_runs_ready_layer_in_parallel_and_injects_declared_dependen
         query="测试",
         project_ctx={},
         node_runner=run_node,
+        publish=events.append,
     )
     elapsed = time.monotonic() - started
 
@@ -61,6 +65,12 @@ def test_execute_plan_runs_ready_layer_in_parallel_and_injects_declared_dependen
         "cost": {"node": "cost"},
     }
     assert list(executed.results) == ["market", "cost", "pricing"]
+    assert list(executed.upstream) == ["market", "cost", "pricing"]
+    assert [event["node_id"] for event in events if event["type"] == "expert_done"] == [
+        "cost",
+        "market",
+        "pricing",
+    ]
 
 
 def test_execute_plan_skips_node_with_failed_dependency() -> None:

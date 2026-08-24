@@ -123,6 +123,7 @@ def execute_plan(
                 ): node
                 for node in runnable
             }
+            completed: dict[str, ExpertResult] = {}
             for future in concurrent.futures.as_completed(futures):
                 node = futures[future]
                 try:
@@ -135,9 +136,13 @@ def execute_plan(
                         evidence=[],
                         error=f"节点执行失败: {exc}",
                     )
+                completed[node.id] = result
+                emit("expert_done", node, error=result.error)
+
+            for node in runnable:
+                result = completed[node.id]
                 results[node.id] = result.as_dict()
                 upstream[node.id] = result.conclusion
-                emit("expert_done", node, error=result.error)
 
     return PlanExecutionResult(results=results, upstream=upstream)
 
