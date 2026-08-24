@@ -100,6 +100,10 @@ def execute_node(state: dict[str, Any]) -> dict[str, Any]:
     return {"results": executed.results, "upstream": executed.upstream}
 
 
+def _valid_decision(conclusion: Any) -> bool:
+    return isinstance(conclusion, dict) and bool(str(conclusion.get("summary") or "").strip())
+
+
 def final_node(state: dict[str, Any]) -> dict[str, Any]:
     if state["mode"] == "chat":
         try:
@@ -132,6 +136,23 @@ def final_node(state: dict[str, Any]) -> dict[str, Any]:
     ]
     executive = next((node for node in plan.nodes if node.capability_id == "executive_expert"), None)
     conclusion = sections.get(executive.id, {}).get("conclusion") if executive else None
+    if not _valid_decision(conclusion):
+        reason_code = "missing_executive_node" if executive is None else "missing_final_decision"
+        reason = "执行计划缺少决策整合节点，无法形成经营决策。" if executive is None else "决策整合未返回可用摘要，无法形成可靠的经营结论。"
+        return {
+            "final": {
+                "mode": "research",
+                "rewritten": state.get("rewritten"),
+                "answer": None,
+                "reason": reason,
+                "reason_code": reason_code,
+                "sections": sections,
+                "evidence": evidence,
+                "roles": [node.id for node in plan.nodes],
+                "decision_graph": state.get("decision_graph"),
+                "execution_plan": state.get("execution_plan"),
+            }
+        }
     return {
         "final": {
             "mode": "research",

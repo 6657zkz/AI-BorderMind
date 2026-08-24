@@ -495,6 +495,11 @@ def build_chain(
     )
 
 
+def _has_final_decision(final: dict[str, Any]) -> bool:
+    answer = final.get("answer")
+    return isinstance(answer, dict) and bool(str(answer.get("summary") or "").strip())
+
+
 def complete_analysis_run(
     db: Session,
     *,
@@ -519,6 +524,12 @@ def complete_analysis_run(
     if final.get("clarification") and clarification_needs:
         run.status = "waiting_clarification"
         record_clarifications(db, run_id=run_id, needs=clarification_needs)
+    elif final.get("mode") == "research" and not _has_final_decision(final):
+        run.status = "failed"
+        run.error_json = {
+            "code": final.get("reason_code") or "missing_final_decision",
+            "message": final.get("reason") or "研判未形成可用的最终决策。",
+        }
     elif final.get("mode") == "research":
         chain = build_chain(
             db,
@@ -541,7 +552,8 @@ def complete_analysis_run(
         run.status = "succeeded"
 
     run.final_json = stored_final
-    run.error_json = None
+    if run.status != "failed":
+        run.error_json = None
     if run.status != "waiting_clarification":
         run.completed_at = datetime.now(timezone.utc)
     append_run_event(

@@ -8,11 +8,9 @@
 
 import logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(name)s %(levelname)s %(message)s",
-    datefmt="%H:%M:%S",
-)
+from .logging_config import APP_VERSION, LOG_PATH, configure_logging
+
+configure_logging()
 logger = logging.getLogger("chuhai")
 
 
@@ -27,6 +25,7 @@ def create_app():
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        logger.info("service_started version=%s log_path=%s", APP_VERSION, LOG_PATH)
         # 可选：配置 MONITOR_PROJECT_ID 后，启动时开启持续监控调度（时间触发）
         if os.getenv("MONITOR_PROJECT_ID"):
             from .db import SessionLocal
@@ -37,6 +36,7 @@ def create_app():
                 ctx = build_context(db, os.getenv("MONITOR_PROJECT_ID"))
             setup_monitor(ctx, interval_minutes=int(os.getenv("MONITOR_INTERVAL_MINUTES", "60")))
         yield
+        logger.info("service_stopping version=%s", APP_VERSION)
         from .monitor import shutdown_monitor
 
         shutdown_monitor()

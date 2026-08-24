@@ -110,6 +110,7 @@ def test_analysis_run_persists_ordered_evidence_and_node_link(trace_db) -> None:
 
     final = {
         "mode": "research",
+        "answer": {"summary": "需求增长"},
         "sections": {
             "demand_researcher": {
                 "evidence": [
@@ -202,7 +203,35 @@ def test_clarification_keeps_run_open(trace_db) -> None:
     assert stored_run.final_json == final
 
 
-def test_bare_clarification_completes_run(trace_db) -> None:
+def test_research_without_final_decision_fails_run(trace_db) -> None:
+    db, session_id, message_id = trace_db
+    run = create_analysis_run(
+        db,
+        session_id=session_id,
+        user_message_id=message_id,
+        query="美国站 TWS 耳机如何定价",
+        project_ctx={"project_id": "test"},
+    )
+
+    chain = complete_analysis_run(
+        db,
+        run_id=run.run_id,
+        final={"mode": "research", "reason": "决策整合未返回可用摘要。"},
+        decision_graph=None,
+        execution_plan=None,
+    )
+
+    assert chain is None
+    db.expire_all()
+    stored_run = db.get(AnalysisRun, run.run_id)
+    assert stored_run.status == "failed"
+    assert stored_run.error_json == {
+        "code": "missing_final_decision",
+        "message": "决策整合未返回可用摘要。",
+    }
+
+
+
     db, session_id, message_id = trace_db
     run = create_analysis_run(
         db,

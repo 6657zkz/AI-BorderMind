@@ -58,6 +58,14 @@ async function submit(need) {
       </div>
     </div>
 
+    <template v-else-if="final.reason">
+      <section class="error-card decision-unavailable">
+        <strong>无法形成经营决策</strong>
+        <span>{{ final.reason }}</span>
+        <small>请补充可用数据、缩小研判范围后重新发起。</small>
+      </section>
+    </template>
+
     <template v-else-if="final.mode === 'research' || run.status === 'partial_succeeded' || run.status === 'succeeded'">
       <section class="decision-card">
         <div class="card-head">
