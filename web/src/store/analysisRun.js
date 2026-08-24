@@ -22,6 +22,42 @@ export const useAnalysisRunStore = defineStore('analysisRun', {
   },
 
   actions: {
+    beginPending(query) {
+      this.disconnect()
+      this.runId = null
+      this.lastSeq = 0
+      this.error = null
+      this.snapshot = {
+        run_id: null,
+        status: 'planning',
+        query,
+        final: {},
+        nodes: [],
+        execution_plan: { nodes: [] },
+        clarifications: [],
+      }
+    },
+
+    reset() {
+      this.disconnect()
+      this.runId = null
+      this.lastSeq = 0
+      this.error = null
+      this.snapshot = null
+    },
+
+    updateNode(nodeId, role, patch) {
+      if (!this.snapshot) return
+      this.snapshot.nodes ||= []
+      let node = nodeId && this.snapshot.nodes.find((item) => item.node_id === nodeId)
+      if (!node && role) node = this.snapshot.nodes.find((item) => item.role === role)
+      if (!node) {
+        node = { node_id: nodeId || role, role: role || nodeId, status: 'queued' }
+        this.snapshot.nodes.push(node)
+      }
+      Object.assign(node, patch)
+    },
+
     async hydrate(runId) {
       this.runId = runId
       this.snapshot = await api.getAnalysisRun(runId)
@@ -88,14 +124,11 @@ export const useAnalysisRunStore = defineStore('analysisRun', {
       if (!this.snapshot) return
       const { type, node_id: nodeId, data } = event
       if (nodeId) {
-        const node = this.snapshot.nodes?.find((item) => item.node_id === nodeId)
-        if (node) {
-          if (type === 'node_started') node.status = 'running'
-          if (type === 'node_succeeded') Object.assign(node, { status: 'succeeded', elapsed_ms: data.elapsed_ms })
-          if (type === 'node_failed') Object.assign(node, { status: 'failed', error: data.error, elapsed_ms: data.elapsed_ms })
-          if (type === 'node_skipped') Object.assign(node, { status: 'skipped', skipped: data.skipped })
-          if (type === 'node_stage') node.stage = data.stage
-        }
+        if (type === 'node_started') this.updateNode(nodeId, data.role, { status: 'running' })
+        if (type === 'node_succeeded') this.updateNode(nodeId, data.role, { status: 'succeeded', elapsed_ms: data.elapsed_ms })
+        if (type === 'node_failed') this.updateNode(nodeId, data.role, { status: 'failed', error: data.error, elapsed_ms: data.elapsed_ms })
+        if (type === 'node_skipped') this.updateNode(nodeId, data.role, { status: 'skipped', skipped: data.skipped })
+        if (type === 'node_stage') this.updateNode(nodeId, data.role, { stage: data.stage })
       }
       if (type === 'run_completed' || type === 'run_failed' || type === 'run_cancelled' || type === 'run_waiting_clarification') {
         this.hydrate(this.runId)

@@ -417,10 +417,10 @@ async def api_chat_stream(body: ChatRequest, db: DbSession = Depends(get_db)):
                     if d.get("type") == "expert_start":
                         yield sse(
                             "expert_start",
-                            {"role": d["role"], "label": _ROLE_LABEL.get(d["role"], d["role"])},
+                            {"role": d["role"], "node_id": d.get("node_id"), "label": _ROLE_LABEL.get(d["role"], d["role"])},
                         )
                     elif d.get("type") == "expert_done":
-                        yield sse("expert_done", {"role": d["role"], "error": d.get("error")})
+                        yield sse("expert_done", {"role": d["role"], "node_id": d.get("node_id"), "error": d.get("error")})
                     elif d.get("type") == "node_stage":
                         yield sse(
                             "node_progress",

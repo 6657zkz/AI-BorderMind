@@ -81,24 +81,5 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.signals { padding: 20px; max-width: 900px; margin: 0 auto; height: 100%; overflow-y: auto; }
-.head { display: flex; justify-content: space-between; align-items: center; }
-.head button {
-  padding: 8px 16px; border: none; border-radius: 8px; background: var(--accent);
-  color: #fff; cursor: pointer; font-weight: 600;
-}
-.error { color: var(--warn); }
-.muted { color: var(--muted); }
-.empty { color: var(--muted); margin-top: 40px; text-align: center; }
-.list { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
-.card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
-.card-head { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
-.type { font-weight: 600; color: var(--accent); }
-.confidence { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #22304c; }
-.confidence.high { color: var(--warn); }
-.confidence.medium { color: var(--accent); }
-.confidence.low { color: var(--muted); }
-.status { font-size: 12px; color: var(--muted); }
-.summary { line-height: 1.6; }
-.meta { margin-top: 8px; color: var(--muted); font-size: 12px; display: flex; gap: 16px; }
+.signals { padding: 20px; max-width: 900px; margin: 0 auto; height: 100%; min-height: 0; overflow-y: auto; }.head { display: flex; justify-content: space-between; align-items: center; }.head button { padding: 8px 16px; border: none; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; font-weight: 600; }.error { color: var(--warn); }.muted { color: var(--muted); }.empty { color: var(--muted); margin-top: 40px; text-align: center; }.list { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(15, 23, 42, .03); }.card-head { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }.type { font-weight: 600; color: var(--accent); }.confidence { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--surface-subtle); }.confidence.high { color: var(--warn); }.confidence.medium { color: var(--accent); }.confidence.low { color: var(--muted); }.status { font-size: 12px; color: var(--muted); }.summary { line-height: 1.6; }.meta { margin-top: 8px; color: var(--muted); font-size: 12px; display: flex; gap: 16px; }
 </style>

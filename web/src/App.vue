@@ -106,14 +106,16 @@ async function confirmDelete(type, id, label) {
 
 <style>
 :root {
-  --bg: #0b101b;
-  --panel: #111a2a;
-  --border: #263650;
-  --text: #edf3ff;
-  --muted: #8090ad;
-  --accent: #5a8dff;
-  --ok: #22c55e;
-  --warn: #f59e0b;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-subtle: #f1f5f9;
+  --panel: #ffffff;
+  --border: #dbe3ef;
+  --text: #172033;
+  --muted: #64748b;
+  --accent: #2563eb;
+  --ok: #16a34a;
+  --warn: #d97706;
 }
 * { box-sizing: border-box; }
 body {
@@ -126,7 +128,7 @@ body {
 .topbar {
   display: flex; align-items: center; gap: 24px;
   padding: 0 20px; height: 52px;
-  background: radial-gradient(circle at 40% -30%, #1f396f 0, transparent 42%), var(--panel); border-bottom: 1px solid var(--border);
+  background: var(--surface); border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 750; letter-spacing: -.02em; font-size: 17px; color: var(--text); text-decoration: none; }
@@ -135,9 +137,9 @@ body {
 .topbar nav a {
   color: var(--muted); text-decoration: none; padding: 6px 14px; border-radius: 8px;
 }
-.topbar nav a.router-link-active { color: var(--text); background: #22304c; }
+.topbar nav a.router-link-active { color: #1d4ed8; background: #eff6ff; }
 .project-tag { color: var(--muted); font-size: 13px; }
-.body { display: flex; flex: 1; overflow: hidden; }
+.body { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
 .sidebar {
   width: 280px; flex-shrink: 0; border-right: 1px solid var(--border);
   background: var(--panel); display: flex; flex-direction: column;
@@ -148,14 +150,14 @@ body {
 }
 .side-scroll { flex: 1; overflow-y: auto; padding: 10px; }
 .project { margin-bottom: 8px; border-radius: 8px; }
-.project.active { background: #1c2740; }
+.project.active { background: #eff6ff; }
 .p-name {
   display: flex; align-items: center; gap: 6px;
   padding: 9px 10px; cursor: pointer; font-size: 14px;
 }
-.p-name:hover { background: #22304c; border-radius: 8px; }
+.p-name:hover { background: #f1f5f9; border-radius: 8px; }
 .p-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tag { font-size: 11px; padding: 1px 8px; border-radius: 10px; color: var(--muted); background: #22304c; flex-shrink: 0; }
+.tag { font-size: 11px; padding: 1px 8px; border-radius: 10px; color: var(--muted); background: #f1f5f9; flex-shrink: 0; }
 .tag.on { color: var(--ok); }
 .ops { display: none; gap: 2px; flex-shrink: 0; }
 .p-name:hover .ops, .session:hover .ops { display: flex; }
@@ -170,8 +172,8 @@ body {
   display: flex; align-items: center; gap: 6px;
   font-size: 12px; color: var(--muted); padding: 6px 8px; border-radius: 6px; cursor: pointer;
 }
-.session:hover { background: #22304c; }
-.session.active { color: var(--text); background: #2a3a5c; }
+.session:hover { background: #f1f5f9; }
+.session.active { color: var(--text); background: #dbeafe; }
 .s-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .s-count { color: var(--muted); font-size: 11px; flex-shrink: 0; }
 .edit-input {
@@ -184,5 +186,5 @@ body {
 }
 .mini:hover { border-color: var(--accent); }
 .new-session { align-self: flex-start; margin-top: 2px; }
-.content { flex: 1; overflow: hidden; }
+.content { flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
 </style>

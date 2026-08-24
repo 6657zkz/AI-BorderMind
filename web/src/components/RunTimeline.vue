@@ -36,7 +36,8 @@ function nodeStage(node) {
   if (item?.status === 'succeeded') return '已完成'
   if (item?.status === 'failed') return '执行失败'
   if (item?.status === 'skipped') return '已跳过'
-  if (item?.status === 'running') return '准备中'
+  if (item?.status === 'queued') return '准备执行'
+  if (!item && props.status === 'succeeded') return '未收到执行记录'
   return '等待依赖'
 }
 
@@ -75,25 +76,13 @@ function roleName(node) {
 <style scoped>
 .timeline { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
-.eyebrow { margin: 0 0 4px; font-size: 10px; letter-spacing: .12em; color: #7c8db0; font-weight: 700; }
-h3 { margin: 0; font-size: 15px; }
-.run-status { border: 1px solid #344262; color: #9caac4; padding: 4px 8px; border-radius: 999px; font-size: 11px; white-space: nowrap; }
-.run-status.running, .run-status.planning { color: #fbbf24; border-color: #8a6618; }
-.run-status.succeeded { color: #4ade80; border-color: #176b43; }
-.run-status.partial_succeeded, .run-status.failed, .run-status.timed_out { color: #fbbf24; border-color: #9a6418; }
+.eyebrow { margin: 0 0 4px; font-size: 10px; letter-spacing: .12em; color: var(--muted); font-weight: 700; }
+h3 { margin: 0; font-size: 15px; color: var(--text); }
+.run-status { border: 1px solid var(--border); color: var(--muted); padding: 4px 8px; border-radius: 999px; font-size: 11px; white-space: nowrap; background: var(--surface-subtle); }
+.run-status.running, .run-status.planning { color: #a16207; border-color: #fcd34d; background: #fffbeb; }.run-status.succeeded { color: #15803d; border-color: #86efac; background: #f0fdf4; }.run-status.partial_succeeded, .run-status.failed, .run-status.timed_out { color: #b45309; border-color: #fdba74; background: #fff7ed; }
 .layer { display: flex; flex-direction: column; gap: 7px; }
-.layer-title { color: #7c8db0; font-size: 11px; font-weight: 600; }
-.layer-title span { margin-left: 5px; color: #617292; font-weight: 400; }
-.node { display: flex; gap: 9px; padding: 10px; background: rgba(23, 30, 46, .72); border: 1px solid #26324a; border-radius: 10px; }
-.status-dot { width: 7px; height: 7px; flex: 0 0 auto; margin-top: 5px; border-radius: 50%; background: #64748b; }
-.node.running .status-dot { background: #fbbf24; box-shadow: 0 0 0 4px rgba(251, 191, 36, .12); animation: breathe 1.4s infinite; }
-.node.succeeded .status-dot { background: #4ade80; }
-.node.failed .status-dot, .node.skipped .status-dot { background: #fb923c; }
-.node-content { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.node-content strong { font-size: 12px; text-transform: capitalize; }
-.node-content small { color: #9caac4; font-size: 11px; }
-.node-content p { margin: 1px 0 0; color: #7c8db0; font-size: 10px; overflow-wrap: anywhere; }
-.node-content .error { color: #fbbf24; }
-.empty { color: #7c8db0; font-size: 12px; padding: 18px 0; }
+.layer-title { color: var(--muted); font-size: 11px; font-weight: 600; }.layer-title span { margin-left: 5px; color: #94a3b8; font-weight: 400; }
+.node { display: flex; gap: 9px; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }.status-dot { width: 7px; height: 7px; flex: 0 0 auto; margin-top: 5px; border-radius: 50%; background: #94a3b8; }.node.running .status-dot { background: #eab308; box-shadow: 0 0 0 4px rgba(234, 179, 8, .12); animation: breathe 1.4s infinite; }.node.succeeded .status-dot { background: var(--ok); }.node.failed .status-dot, .node.skipped .status-dot { background: #f97316; }
+.node-content { min-width: 0; display: flex; flex-direction: column; gap: 3px; }.node-content strong { font-size: 12px; color: var(--text); text-transform: capitalize; }.node-content small { color: var(--muted); font-size: 11px; }.node-content p { margin: 1px 0 0; color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }.node-content .error { color: #b45309; }.empty { color: var(--muted); font-size: 12px; padding: 18px 0; }
 @keyframes breathe { 50% { opacity: .48; } }
 </style>

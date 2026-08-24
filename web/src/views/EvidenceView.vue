@@ -103,33 +103,7 @@ watch(() => route.params.chainId, (id) => loadChain(id), { immediate: true })
 </template>
 
 <style scoped>
-.evidence { display: flex; height: 100%; }
-.sidebar {
-  width: 280px; border-right: 1px solid var(--border); padding: 16px; overflow-y: auto;
-}
-.sidebar h3 { margin-top: 0; }
-.chain-item { padding: 10px; border-radius: 8px; cursor: pointer; margin-bottom: 6px; }
-.chain-item:hover { background: #22304c; }
-.chain-item.active { background: #22304c; border: 1px solid var(--accent); }
-.cid { font-size: 12px; color: var(--accent); font-family: monospace; }
-.q { font-size: 13px; color: var(--text); margin-top: 4px; }
-.detail { flex: 1; overflow-y: auto; padding: 20px; }
-.head .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
-.entries { margin-top: 16px; display: flex; flex-direction: column; gap: 16px; }
-.entry { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
-.entry-head { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
-.role { color: var(--accent); font-weight: 600; }
-.op { font-family: monospace; color: var(--text); }
-.ms { margin-left: auto; color: var(--muted); font-size: 12px; }
-.sql {
-  background: var(--bg); padding: 10px; border-radius: 6px; overflow-x: auto;
-  color: #a5b4cb; font-size: 12px; line-height: 1.5;
-}
-.params { color: var(--muted); font-size: 12px; margin-top: 8px; }
-.rows { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: 12px; }
-.rows th, .rows td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
-.rows th { color: var(--muted); background: #22304c; }
-.count { color: var(--muted); font-size: 12px; margin-top: 8px; }
-.error { color: var(--warn); }
-.muted { color: var(--muted); }
+.evidence { display: flex; height: 100%; min-height: 0; background: var(--bg); }
+.sidebar { width: 280px; border-right: 1px solid var(--border); padding: 16px; overflow-y: auto; background: var(--surface); }
+.sidebar h3 { margin-top: 0; }.chain-item { padding: 10px; border-radius: 8px; cursor: pointer; margin-bottom: 6px; }.chain-item:hover { background: var(--surface-subtle); }.chain-item.active { background: #eff6ff; border: 1px solid #bfdbfe; }.cid { font-size: 12px; color: var(--accent); font-family: monospace; }.q { font-size: 13px; color: var(--text); margin-top: 4px; }.detail { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; padding: 20px; }.head .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }.entries { margin-top: 16px; display: flex; flex-direction: column; gap: 16px; }.entry { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }.entry-head { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }.role { color: var(--accent); font-weight: 600; }.op { font-family: monospace; color: var(--text); }.ms { margin-left: auto; color: var(--muted); font-size: 12px; }.sql { background: var(--surface-subtle); padding: 10px; border-radius: 6px; overflow-x: auto; color: #475569; font-size: 12px; line-height: 1.5; }.params { color: var(--muted); font-size: 12px; margin-top: 8px; }.rows { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: 12px; }.rows th, .rows td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }.rows th { color: var(--muted); background: var(--surface-subtle); }.count, .muted { color: var(--muted); font-size: 12px; margin-top: 8px; }.error { color: var(--warn); }
 </style>
