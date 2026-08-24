@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from ..base import ExpertAgent
 
 
@@ -11,7 +9,6 @@ class CompetitiveAnalyst(ExpertAgent):
     role = "competitive_analyst"
     display_name = "竞争格局分析师"
     description = "梳理类目竞争结构、机会评分与头部玩家格局"
-    operators: ClassVar[list[str]] = ["market_opportunity", "product_position"]
     system_prompt = """你是竞争格局分析师，负责把类目里的竞争地图摊开给你看。你回答的核心问题：这个市场挤不挤？机会在哪儿？
 
 ## 你的分析维度

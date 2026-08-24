@@ -41,7 +41,7 @@ def create_app():
 
         shutdown_monitor()
 
-    app = FastAPI(title="出海参谋", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="AI-BorderMind", version="0.2.0", lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,

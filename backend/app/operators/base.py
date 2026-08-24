@@ -36,6 +36,7 @@ class OperatorResult:
     params: dict[str, Any]
     sql: str
     rows: list[dict[str, Any]]
+    row_count: int
     executed_at: str
     elapsed_ms: int
     truncated: bool = False
@@ -46,6 +47,7 @@ class OperatorResult:
             "params": self.params,
             "sql": self.sql,
             "rows": self.rows,
+            "row_count": self.row_count,
             "executed_at": self.executed_at,
             "elapsed_ms": self.elapsed_ms,
             "truncated": self.truncated,
@@ -86,6 +88,7 @@ class Operator(BaseModel):
             params=clean,
             sql=sql,
             rows=mapped[: self.max_rows],
+            row_count=len(mapped),
             executed_at=datetime.now(timezone.utc).isoformat(),
             elapsed_ms=elapsed,
             truncated=len(mapped) > self.max_rows,

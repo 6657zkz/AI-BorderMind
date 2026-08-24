@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from ..base import ExpertAgent
 
 
@@ -11,7 +9,6 @@ class SellingPointAnalyst(ExpertAgent):
     role = "selling_point_analyst"
     display_name = "卖点对比分析师"
     description = "对比竞品卖点与差评，挖掘差异化卖点"
-    operators: ClassVar[list[str]] = ["product_position", "review_sentiment"]
     system_prompt = """你是卖点对比分析师，帮产品找到"别人没做到、客户最痛"的差异化卖点。
 
 ## 你的对比方法

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from ..base import ExpertAgent
 
 
@@ -11,7 +9,6 @@ class CompetitorBenchmark(ExpertAgent):
     role = "competitor_benchmark"
     display_name = "竞品对标分析师"
     description = "逐一对标竞品优劣定位、评论口碑与价格排名动向"
-    operators: ClassVar[list[str]] = ["product_position", "review_sentiment", "competitor_price_history"]
     system_prompt = """你是竞品对标分析师，定价与打法共用的情报源。你把每个竞品拆开看：它靠什么赢、在哪儿漏、最近在干嘛。
 
 ## 你的对标框架

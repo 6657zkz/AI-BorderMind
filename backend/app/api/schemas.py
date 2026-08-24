@@ -22,5 +22,10 @@ class ChatRequest(BaseModel):
     message: str
 
 
+class ClarificationAnswerRequest(BaseModel):
+    field_id: str
+    value: str
+
+
 class MonitorRunRequest(BaseModel):
     project_id: str

@@ -1,4 +1,15 @@
+from .catalog import (
+    ANALYSIS_TASKS,
+    CAPABILITIES,
+    DATA_CAPABILITIES,
+    DECISION_TYPES,
+    EXPERT_ROLES,
+    catalog_entries,
+    get_capability,
+    validate_catalog,
+)
 from .compiler import compile_plan
+from .request import PlannedRequest, plan_request
 from .contracts import (
     ClarificationNeed,
     DataRequirement,
@@ -25,5 +36,15 @@ __all__ = [
     "PlanNode",
     "PlanningError",
     "RelationKind",
+    "ANALYSIS_TASKS",
+    "CAPABILITIES",
+    "DATA_CAPABILITIES",
+    "DECISION_TYPES",
+    "EXPERT_ROLES",
+    "catalog_entries",
+    "get_capability",
+    "validate_catalog",
+    "plan_request",
+    "PlannedRequest",
     "compile_plan",
 ]

@@ -17,13 +17,19 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from ..db import SessionLocal, get_db
-from ..evidence import build_chain
+from ..db import AnalysisRun, SessionLocal, get_db
+from ..evidence import (
+    complete_analysis_run,
+    create_analysis_run,
+    fail_analysis_run,
+    get_run_snapshot,
+)
 from ..graph import workflow
-from ..project import apply_product, apply_scope, parse_scope, top_products
-from ..session import append_message, get_session, resolve_context, update_message
+from ..project import apply_product, apply_profile_field, apply_scope, parse_scope, parse_target_margin, top_products
+from ..session import append_message, get_session, latest_pending_clarification, resolve_context, update_message
 from .schemas import ChatRequest
 
 logger = logging.getLogger("chuhai.api")
@@ -37,11 +43,14 @@ _ROLE_LABEL = {
 }
 
 
-def _initial_state(message: str, project_ctx: dict[str, Any]) -> dict[str, Any]:
+def _initial_state(message: str, project_ctx: dict[str, Any], run_id: str | None = None) -> dict[str, Any]:
     return {
         "query": message,
+        "run_id": run_id,
         "project_ctx": project_ctx,
-        "mode": "research",
+        "decision_graph": None,
+        "execution_plan": None,
+        "clarifications": [],
         "roles": [],
         "results": {},
         "upstream": {},
@@ -66,6 +75,31 @@ def _has_intent(message: str) -> bool:
 
 def _product_level_intent(message: str) -> bool:
     return any(kw in message for kw in _PRODUCT_LEVEL_KEYWORDS)
+
+
+def _resolve_clarification_answer(
+    db: DbSession,
+    session_id: str,
+    message: str,
+) -> tuple[dict[str, Any], str, str | None] | None:
+    pending = latest_pending_clarification(db, session_id)
+    if pending is None:
+        return None
+    need, original_query = pending
+    if need.get("field_id") != "target_margin":
+        return None
+    target_margin = parse_target_margin(message)
+    if target_margin is None:
+        return None
+    project_ctx = resolve_context(db, session_id)
+    apply_profile_field(db, project_ctx["project_id"], "target_margin", target_margin)
+    run_id = db.execute(
+        select(AnalysisRun.run_id)
+        .where(AnalysisRun.session_id == session_id, AnalysisRun.status == "waiting_clarification")
+        .order_by(AnalysisRun.started_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    return resolve_context(db, session_id), original_query, run_id
 
 
 def _resolve_scope(db: DbSession, session_id: str, message: str) -> tuple[dict[str, Any], str | None]:
@@ -107,22 +141,59 @@ def api_chat(body: ChatRequest, db: DbSession = Depends(get_db)):
     session = get_session(db, body.session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="会话不存在")
-    project_ctx, ack = _resolve_scope(db, body.session_id, body.message)
-    append_message(db, body.session_id, "user", body.message)
+    clarification_answer = _resolve_clarification_answer(db, body.session_id, body.message)
+    resumed_run_id = None
+    if clarification_answer is None:
+        project_ctx, ack = _resolve_scope(db, body.session_id, body.message)
+        query = body.message
+    else:
+        project_ctx, query, resumed_run_id = clarification_answer
+        ack = None
+    user_message = append_message(db, body.session_id, "user", body.message)
     if ack:
         final = {"mode": "chat", "answer": ack}
         append_message(db, body.session_id, "assistant", json.dumps(final, ensure_ascii=False))
         return {"session_id": body.session_id, "final": final}
 
+    if resumed_run_id:
+        run = db.get(AnalysisRun, resumed_run_id)
+        if run is None:
+            raise HTTPException(status_code=409, detail="等待澄清的研判运行不存在")
+        run.user_message_id = user_message.id
+        run.project_context_json = project_ctx
+        run.status = "planning"
+        run.completed_at = None
+        db.commit()
+    else:
+        run = create_analysis_run(
+            db,
+            session_id=body.session_id,
+            user_message_id=user_message.id,
+            query=query,
+            project_ctx=project_ctx,
+        )
     from ..graph import run_research
-    result = run_research(body.message, project_ctx)
-    final = result.get("final") or {}
 
-    if final.get("mode") == "research" and final.get("sections"):
-        chain = build_chain(body.message, final["sections"])
-        final["chain_id"] = chain.chain_id
+    try:
+        result = run_research(query, project_ctx, run_id=run.run_id)
+        final = result.get("final") or {}
+        complete_analysis_run(
+            db,
+            run_id=run.run_id,
+            final=final,
+            decision_graph=result.get("decision_graph"),
+            execution_plan=result.get("execution_plan"),
+        )
+    except Exception as exc:
+        fail_analysis_run(
+            db,
+            run_id=run.run_id,
+            error={"message": str(exc), "code": "workflow_error"},
+        )
+        raise
+
     append_message(db, body.session_id, "assistant", json.dumps(final, ensure_ascii=False))
-    return {"session_id": body.session_id, "final": final}
+    return {"session_id": body.session_id, "run_id": run.run_id, "final": final}
 
 
 _STREAM_WORKFLOW_TIMEOUT_SECONDS = 240
@@ -133,19 +204,46 @@ async def api_chat_stream(body: ChatRequest, db: DbSession = Depends(get_db)):
     session = get_session(db, body.session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="会话不存在")
-    project_ctx, ack = _resolve_scope(db, body.session_id, body.message)
-    append_message(db, body.session_id, "user", body.message)
-    initial = _initial_state(body.message, project_ctx)
+    clarification_answer = _resolve_clarification_answer(db, body.session_id, body.message)
+    resumed_run_id = None
+    if clarification_answer is None:
+        project_ctx, ack = _resolve_scope(db, body.session_id, body.message)
+        query = body.message
+    else:
+        project_ctx, query, resumed_run_id = clarification_answer
+        ack = None
+    user_message = append_message(db, body.session_id, "user", body.message)
+    analysis_run = None
+    if not ack:
+        if resumed_run_id:
+            analysis_run = db.get(AnalysisRun, resumed_run_id)
+            if analysis_run is None:
+                raise HTTPException(status_code=409, detail="等待澄清的研判运行不存在")
+            analysis_run.user_message_id = user_message.id
+            analysis_run.project_context_json = project_ctx
+            analysis_run.status = "planning"
+            analysis_run.completed_at = None
+            db.commit()
+        else:
+            analysis_run = create_analysis_run(
+                db,
+                session_id=body.session_id,
+                user_message_id=user_message.id,
+                query=query,
+                project_ctx=project_ctx,
+            )
+    initial = _initial_state(query, project_ctx, run_id=analysis_run.run_id if analysis_run else None)
     loading = {
         "kind": "loading",
         "streaming": True,
         "experts": [],
         "final": None,
         "chainId": None,
+        "runId": analysis_run.run_id if analysis_run else None,
         "startedAt": int(time.time() * 1000),
     }
     assistant_message = append_message(db, body.session_id, "assistant", json.dumps(loading, ensure_ascii=False))
-    logger.info("stream start session=%s msg=%r ctx=%s ack=%s", body.session_id, body.message, project_ctx, bool(ack))
+    logger.info("stream start session=%s query=%r ctx=%s ack=%s", body.session_id, query, project_ctx, bool(ack))
     t0 = time.monotonic()
 
     def sse(name: str, data: dict) -> str:
@@ -163,9 +261,11 @@ async def api_chat_stream(body: ChatRequest, db: DbSession = Depends(get_db)):
             yield sse("done", {})
             return
 
+        yield sse("run_created", {"run_id": analysis_run.run_id})
         q: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
         loop = asyncio.get_running_loop()
         subscriber_closed = threading.Event()
+        terminal_persisted = threading.Event()
         stop_keepalive = threading.Event()
         message_lock = threading.Lock()
         persisted = loading.copy()
@@ -180,35 +280,60 @@ async def api_chat_stream(body: ChatRequest, db: DbSession = Depends(get_db)):
                 if mode == "custom":
                     event_type = payload.get("type")
                     role = payload.get("role")
-                    if event_type in {"expert_start", "expert_done"} and role:
+                    if event_type in {"expert_start", "expert_done", "node_stage", "node_queued", "node_skipped"} and role:
                         experts = persisted["experts"]
                         expert = next((item for item in experts if item["role"] == role), None)
                         if expert is None:
-                            expert = {"role": role, "label": _ROLE_LABEL.get(role, role), "status": "working", "error": None}
+                            expert = {
+                                "role": role,
+                                "label": _ROLE_LABEL.get(role, role),
+                                "status": "queued",
+                                "stage": None,
+                                "error": None,
+                            }
                             experts.append(expert)
-                        if event_type == "expert_done":
-                            expert["status"] = "done"
+                        if event_type == "expert_start":
+                            expert["status"] = "working"
+                        elif event_type == "expert_done":
+                            expert["status"] = "error" if payload.get("error") else "done"
                             expert["error"] = payload.get("error")
+                        elif event_type == "node_skipped":
+                            expert["status"] = "skipped"
+                        elif event_type == "node_stage":
+                            expert["stage"] = payload.get("stage")
                         persist()
                 elif mode == "updates":
                     for node, update in payload.items():
-                        if node == "final":
-                            final = update.get("final")
-                            if not final:
-                                continue
-                            if final.get("clarification"):
-                                persisted.clear()
-                                persisted.update(final)
-                                persist()
-                                continue
-                            if final.get("mode") == "research" and final.get("sections"):
-                                chain = build_chain(body.message, final["sections"])
-                                final["chain_id"] = chain.chain_id
-                            persisted.clear()
-                            persisted.update(final)
-                            persist()
+                        if node != "final":
+                            continue
+                        final = update.get("final")
+                        if not final:
+                            continue
+                        if analysis_run and not terminal_persisted.is_set():
+                            with SessionLocal() as worker_db:
+                                complete_analysis_run(
+                                    worker_db,
+                                    run_id=analysis_run.run_id,
+                                    final=final,
+                                    decision_graph=final.get("decision_graph"),
+                                    execution_plan=final.get("execution_plan"),
+                                )
+                            terminal_persisted.set()
+                        persisted.clear()
+                        persisted.update(final)
+                        persist()
 
         def persist_error(message: str, code: str) -> None:
+            if analysis_run and not terminal_persisted.is_set():
+                status = "timed_out" if code == "workflow_timeout" else "failed"
+                with SessionLocal() as worker_db:
+                    fail_analysis_run(
+                        worker_db,
+                        run_id=analysis_run.run_id,
+                        error={"message": message, "code": code},
+                        status=status,
+                    )
+                terminal_persisted.set()
             with message_lock:
                 persisted.clear()
                 persisted.update({"kind": "error", "error": message, "code": code, "streaming": False})
@@ -226,7 +351,7 @@ async def api_chat_stream(body: ChatRequest, db: DbSession = Depends(get_db)):
             while not stop_keepalive.wait(5):
                 publish("__keepalive__", None)
 
-        def run() -> None:
+        def run_workflow() -> None:
             try:
                 for mode, payload in workflow.stream(initial, stream_mode=["updates", "custom"]):
                     persist_event(mode, payload)
@@ -239,7 +364,7 @@ async def api_chat_stream(body: ChatRequest, db: DbSession = Depends(get_db)):
             finally:
                 stop_keepalive.set()
 
-        future = loop.run_in_executor(None, run)
+        future = loop.run_in_executor(None, run_workflow)
         ka_thread = threading.Thread(target=keepalive, daemon=True)
         ka_thread.start()
         final = None
@@ -284,6 +409,7 @@ async def api_chat_stream(body: ChatRequest, db: DbSession = Depends(get_db)):
                         "stage": "workflow",
                         "retryable": True,
                     }
+                    persist_error(error["message"], error["code"])
                     yield sse("error", error)
                     break
                 if mode == "custom":
@@ -295,11 +421,31 @@ async def api_chat_stream(body: ChatRequest, db: DbSession = Depends(get_db)):
                         )
                     elif d.get("type") == "expert_done":
                         yield sse("expert_done", {"role": d["role"], "error": d.get("error")})
+                    elif d.get("type") == "node_stage":
+                        yield sse(
+                            "node_progress",
+                            {
+                                "role": d["role"],
+                                "node_id": d.get("node_id"),
+                                "stage": d.get("stage"),
+                                "elapsed_ms": d.get("elapsed_ms"),
+                            },
+                        )
                 elif mode == "updates":
                     for node, update in payload.items():
                         if node == "final":
                             final = update.get("final")
-                            if not final or final.get("clarification"):
+                            if not final:
+                                continue
+                            if final.get("clarification"):
+                                yield sse(
+                                    "clarification",
+                                    {
+                                        "message": final["clarification"],
+                                        "clarifications": final.get("clarifications") or [],
+                                        "execution_plan": final.get("execution_plan"),
+                                    },
+                                )
                                 continue
                             yield sse("result", final)
                         elif node == "plan" and update.get("clarification"):

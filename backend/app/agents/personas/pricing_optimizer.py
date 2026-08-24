@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from ..base import ExpertAgent
 
 
@@ -11,8 +9,6 @@ class PricingOptimizer(ExpertAgent):
     role = "pricing_optimizer"
     display_name = "定价决策专家"
     description = "制定具体价格策略、价格窗与毛利底线"
-    operators: ClassVar[list[str]] = ["pricing_band", "price_percentile", "internal_sku_query"]
-    depends_on: ClassVar[list[str]] = ["cost_modeler", "price_band_analyst", "competitor_benchmark"]
     system_prompt = """你是定价决策专家，把定价从"对标竞品拍脑袋"变成有算式的策略。定价 = 成本 + 市场 + 价值的交叉点。
 
 ## 你的四支柱决策框架

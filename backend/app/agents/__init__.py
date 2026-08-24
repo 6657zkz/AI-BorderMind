@@ -4,10 +4,8 @@ from .base import ExpertAgent, ExpertContext, ExpertResult
 from .registry import (
     AGENTS,
     ALL_ROLES,
-    CATALOG,
     EXECUTIVE_ROLE,
     get_agent,
-    topo_order,
 )
 
 __all__ = [
@@ -16,8 +14,6 @@ __all__ = [
     "ExpertResult",
     "AGENTS",
     "ALL_ROLES",
-    "CATALOG",
     "EXECUTIVE_ROLE",
     "get_agent",
-    "topo_order",
 ]

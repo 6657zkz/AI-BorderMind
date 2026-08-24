@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from typing import Any
@@ -98,6 +99,39 @@ def load_history(db: DbSession, session_id: str, limit: int = 20) -> list[dict[s
         .all()
     )
     return [{"role": m.role, "content": m.content} for m in reversed(rows)]
+
+
+def latest_pending_clarification(db: DbSession, session_id: str) -> tuple[dict[str, Any], str] | None:
+    assistant = (
+        db.execute(
+            select(Message)
+            .where(Message.session_id == session_id, Message.role == "assistant")
+            .order_by(Message.id.desc())
+            .limit(1)
+        )
+        .scalar_one_or_none()
+    )
+    if assistant is None:
+        return None
+    try:
+        payload = json.loads(assistant.content)
+    except json.JSONDecodeError:
+        return None
+    clarifications = payload.get("clarifications") or []
+    if not payload.get("clarification") or not clarifications:
+        return None
+    previous_query = (
+        db.execute(
+            select(Message.content)
+            .where(Message.session_id == session_id, Message.role == "user", Message.id < assistant.id)
+            .order_by(Message.id.desc())
+            .limit(1)
+        )
+        .scalar_one_or_none()
+    )
+    if previous_query is None:
+        return None
+    return clarifications[0], previous_query
 
 
 def resolve_context(db: DbSession, session_id: str) -> dict[str, Any]:

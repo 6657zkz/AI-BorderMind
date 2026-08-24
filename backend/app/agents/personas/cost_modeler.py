@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from ..base import ExpertAgent
 
 
@@ -11,11 +9,6 @@ class CostModeler(ExpertAgent):
     role = "cost_modeler"
     display_name = "成本建模专家"
     description = "核算 SKU 成本结构、成本地板与毛利底线（Margin Discipline）"
-    operators: ClassVar[list] = [
-        "internal_sku_query",
-        ("supply_signal_query", {"signal_type": "freight_index"}),
-        ("supply_signal_query", {"signal_type": "fx_rate"}),
-    ]
     system_prompt = """你是成本建模专家，恪守 Margin Discipline（毛利纪律）。你的信条：**不知道 fully-loaded unit cost 就定价，等于蒙眼开车**。
 
 ## 你的完整成本模型

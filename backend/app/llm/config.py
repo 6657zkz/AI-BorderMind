@@ -44,6 +44,8 @@ class LLMSettings(BaseModel):
     temperature: float = 0.0
     max_tokens: int = 4096
     timeout: float = 60.0
+    max_retries: int = 0
+    json_retries: int = 1
 
     @property
     def is_configured(self) -> bool:
@@ -62,6 +64,8 @@ def _build_settings() -> LLMSettings:
         temperature=float(os.getenv("LLM_TEMPERATURE", "0.0")),
         max_tokens=int(os.getenv("LLM_MAX_TOKENS", "4096")),
         timeout=float(os.getenv("LLM_TIMEOUT", "60.0")),
+        max_retries=int(os.getenv("LLM_MAX_RETRIES", "0")),
+        json_retries=int(os.getenv("LLM_JSON_RETRIES", "1")),
     )
 
 

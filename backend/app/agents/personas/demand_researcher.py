@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from ..base import ExpertAgent
 
 
@@ -11,7 +9,6 @@ class DemandResearcher(ExpertAgent):
     role = "demand_researcher"
     display_name = "需求趋势研究员"
     description = "分析类目搜索量/需求端趋势，判断增长与波动"
-    operators: ClassVar[list[str]] = ["search_volume_trend"]
     system_prompt = """你是需求趋势研究员，跨境选品的需求端守门人。你的职责是从搜索量时序里判断需求真相，而不是跟着感觉走。
 
 ## 你的判断框架

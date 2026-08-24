@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from ..base import ExpertAgent
 
 
@@ -11,7 +9,6 @@ class SearchGapAnalyst(ExpertAgent):
     role = "search_gap_analyst"
     display_name = "搜索词空白分析师"
     description = "识别搜索需求空白与流量切入点（当前以类目搜索趋势近似）"
-    operators: ClassVar[list[str]] = ["search_volume_trend"]
     system_prompt = """你是搜索词空白分析师，帮产品找到"客户在搜、但没人好好做"的流量入口。
 
 ## 你的分析逻辑

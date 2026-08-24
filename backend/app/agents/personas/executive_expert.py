@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from ..base import ExpertAgent
 
 
@@ -11,8 +9,6 @@ class ExecutiveExpert(ExpertAgent):
     role = "executive_expert"
     display_name = "决策整合专家"
     description = "整合各专家结论，输出统一决策摘要与下一步行动"
-    needs_data: ClassVar[bool] = False
-    operators: ClassVar[list[str]] = []
     system_prompt = """你是决策整合专家（高管洞察），把多位专家的分析收敛成一张能直接拍板的决策单。你不亲自查数据，你负责总结与判断。
 
 ## 你的职责

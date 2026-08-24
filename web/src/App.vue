@@ -36,7 +36,7 @@ async function confirmDelete(type, id, label) {
 <template>
   <div class="app-shell">
     <header class="topbar">
-      <router-link to="/" class="brand">出海参谋</router-link>
+      <router-link to="/" class="brand"><span class="brand-mark">A</span>AI-BorderMind</router-link>
       <nav>
         <router-link to="/">研判</router-link>
         <router-link to="/signals">监控信号</router-link>
@@ -106,12 +106,12 @@ async function confirmDelete(type, id, label) {
 
 <style>
 :root {
-  --bg: #0f1420;
-  --panel: #171e2e;
-  --border: #26324a;
-  --text: #e6ecf5;
-  --muted: #8b98ad;
-  --accent: #3b82f6;
+  --bg: #0b101b;
+  --panel: #111a2a;
+  --border: #263650;
+  --text: #edf3ff;
+  --muted: #8090ad;
+  --accent: #5a8dff;
   --ok: #22c55e;
   --warn: #f59e0b;
 }
@@ -126,10 +126,11 @@ body {
 .topbar {
   display: flex; align-items: center; gap: 24px;
   padding: 0 20px; height: 52px;
-  background: var(--panel); border-bottom: 1px solid var(--border);
+  background: radial-gradient(circle at 40% -30%, #1f396f 0, transparent 42%), var(--panel); border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-.brand { font-weight: 700; font-size: 18px; color: var(--text); text-decoration: none; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 750; letter-spacing: -.02em; font-size: 17px; color: var(--text); text-decoration: none; }
+.brand-mark { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 8px; color: #fff; font-size: 13px; background: linear-gradient(145deg, #6e9cff, #6957ed); box-shadow: 0 5px 18px rgba(73, 117, 245, .3); }
 .topbar nav { display: flex; gap: 4px; flex: 1; }
 .topbar nav a {
   color: var(--muted); text-decoration: none; padding: 6px 14px; border-radius: 8px;

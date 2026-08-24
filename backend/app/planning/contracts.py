@@ -85,6 +85,10 @@ class ClarificationNeed(BaseModel):
 class PlanNode(BaseModel):
     id: str = Field(pattern=r"^[a-z][a-z0-9_:-]*$")
     capability_id: str
+    analysis_task_id: str
+    expert_role_id: str
+    data_capability_ids: list[str] = Field(default_factory=list)
+    output_contract: list[str] = Field(default_factory=list)
     depends_on: list[str] = Field(default_factory=list)
     source: NodeSource = NodeSource.USER
     data_requirements: list[DataRequirement] = Field(default_factory=list)
@@ -92,7 +96,7 @@ class PlanNode(BaseModel):
 
 
 class ExecutionPlan(BaseModel):
-    goals: list[str] = Field(min_length=1)
+    goals: list[str] = Field(default_factory=list)
     nodes: list[PlanNode] = Field(min_length=1)
     clarifications: list[ClarificationNeed] = Field(default_factory=list)
 

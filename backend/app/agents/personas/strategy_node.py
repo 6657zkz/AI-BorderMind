@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from ..base import ExpertAgent
 
 
@@ -11,9 +9,6 @@ class StrategyNode(ExpertAgent):
     role = "strategy_node"
     display_name = "打法策略节点"
     description = "整合差评/卖点/搜索空白，输出差异化竞争打法"
-    needs_data: ClassVar[bool] = False
-    operators: ClassVar[list[str]] = []
-    depends_on: ClassVar[list[str]] = ["feedback_analyst", "selling_point_analyst", "search_gap_analyst"]
     system_prompt = """你是打法策略节点，竞争打法的最终收口。上游差评根因、卖点对比、搜索空白的结论是你的输入，你输出一套能落地的打法。
 
 ## 你的打法框架（差距驱动）

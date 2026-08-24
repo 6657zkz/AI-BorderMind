@@ -26,18 +26,23 @@ class LLMError(RuntimeError):
 
 
 class LLMClient:
-    def __init__(self, json_retries: int = 2) -> None:
+    def __init__(self, json_retries: int | None = None) -> None:
         s = get_settings()
         if not s.is_configured:
             raise LLMError(
                 f"LLM({s.provider}) 未配置 API Key：请在 backend/.env 设置 "
                 f"{s.provider.upper()}_API_KEY"
             )
-        common = dict(base_url=s.base_url, api_key=s.api_key, timeout=s.timeout, max_retries=2)
+        common = dict(
+            base_url=s.base_url,
+            api_key=s.api_key,
+            timeout=s.timeout,
+            max_retries=s.max_retries,
+        )
         self._sync = OpenAI(**common)
         self._async = AsyncOpenAI(**common)
         self.settings = s
-        self._json_retries = json_retries
+        self._json_retries = s.json_retries if json_retries is None else json_retries
 
     # ---- 内部工具 ----
     def _messages(self, system: str | None, messages: list[dict[str, str]]) -> list[dict[str, str]]:

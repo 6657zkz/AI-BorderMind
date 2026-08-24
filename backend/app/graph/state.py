@@ -15,10 +15,14 @@ def _merge_dict(a: dict | None, b: dict | None) -> dict:
 
 class ResearchState(TypedDict, total=False):
     query: str
+    run_id: str | None
     project_ctx: dict[str, Any]
     mode: str                       # research / chat
     rewritten: str | None           # 统一任务标题（重写需求产出）
-    roles: list[str]                # 本次选中的专家（拆解器产出）
+    decision_graph: dict[str, Any] | None
+    execution_plan: dict[str, Any] | None
+    clarifications: list[dict[str, Any]]
+    roles: list[str]                # 已验证执行计划中的专家角色
     results: Annotated[dict[str, Any], _merge_dict]    # role -> ExpertResult.as_dict()
     upstream: Annotated[dict[str, Any], _merge_dict]   # role -> conclusion
     clarification: str | None       # 画像澄清问题（缺品类/市场时）

@@ -1,423 +1,126 @@
 <script setup>
-import { ref, nextTick, onBeforeUnmount, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useAppStore } from '../store/app'
-import { api } from '../api/client'
+import { useAnalysisRunStore } from '../store/analysisRun'
 import { streamChat } from '../api/sse'
-import ConclusionCard from '../components/ConclusionCard.vue'
-import TrendChart from '../components/TrendChart.vue'
-
-const IDLE_TIMEOUT_MS = 45_000
-const TOTAL_TIMEOUT_MS = 240_000
+import DecisionWorkspace from '../components/DecisionWorkspace.vue'
+import RunTimeline from '../components/RunTimeline.vue'
 
 const store = useAppStore()
+const runStore = useAnalysisRunStore()
 const input = ref('')
 const sending = ref(false)
-const scroller = ref(null)
-const elapsed = ref(0)
-let timer = null
+const composer = ref(null)
 let controller = null
-let idleTimeout = null
-let totalTimeout = null
-let pollTimer = null
-let requestSessionId = null
 
-const ROLE_LABEL = {
-  demand_researcher: '需求趋势研究员',
-  competitive_analyst: '竞争格局分析师',
-  price_band_analyst: '价格带分析师',
-  feedback_analyst: '差评机会分析师',
-  selection_score: '选品综合评分',
-  cost_modeler: '成本建模专家',
-  competitor_benchmark: '竞品对标分析师',
-  pricing_optimizer: '定价决策专家',
-  selling_point_analyst: '卖点对比分析师',
-  search_gap_analyst: '搜索词空白分析师',
-  strategy_node: '打法策略',
-  executive_expert: '决策整合',
-}
-
-const SUGGESTIONS = [
+const suggestions = [
   '这个品类值得做吗？给个选品建议',
   '帮我看看定价，给个价格策略',
   '分析一下竞争格局和打法',
 ]
 
-function expertLabel(role) {
-  return ROLE_LABEL[role] || role
-}
+const scope = computed(() => {
+  if (!store.project?.category_id) return '范围待确认'
+  return `${store.project.category_id} · ${store.project.market_code || '市场待确认'}`
+})
 
-function buildTabs(final) {
-  const tabs = [{ key: '__summary__', label: '总结', kind: 'summary' }]
-  for (const role of final.roles || []) {
-    if (role === 'executive_expert') continue
-    if (final.sections && final.sections[role]) {
-      tabs.push({ key: role, label: expertLabel(role), kind: 'expert', data: final.sections[role] })
-    }
-  }
-  return tabs
-}
-
-function setTab(msg, key) {
-  msg.activeTab = key
-}
-
-function upsertExpert(msg, role, patch) {
-  const idx = msg.experts.findIndex((e) => e.role === role)
-  if (idx === -1) msg.experts.push({ role, label: expertLabel(role), status: 'working', error: null, ...patch })
-  else Object.assign(msg.experts[idx], patch)
-}
-
-function startTimer(startedAt = Date.now()) {
-  if (timer) return
-  elapsed.value = Math.max(0, Math.floor((Date.now() - startedAt) / 1_000))
-  timer = setInterval(() => elapsed.value++, 1000)
-}
-
-function stopTimer() {
-  if (timer) clearInterval(timer)
-  timer = null
-}
-
-function clearRequestTimeouts() {
-  if (idleTimeout) clearTimeout(idleTimeout)
-  if (totalTimeout) clearTimeout(totalTimeout)
-  idleTimeout = null
-  totalTimeout = null
-}
-
-function stopPolling() {
-  if (pollTimer) clearInterval(pollTimer)
-  pollTimer = null
-}
-
-function hasStreamingMessage() {
-  return store.messages.some((message) => message.role === 'assistant' && message.streaming)
-}
-
-function parseStoredMessage(content) {
-  try {
-    const data = JSON.parse(content)
-    if (data.kind === 'loading' || data.kind === 'error') return { role: 'assistant', ...data }
-    if (data.clarification) return { role: 'assistant', kind: 'clarification', clarification: data.clarification }
-    if (data.mode === 'research') return { role: 'assistant', kind: 'research', final: data, chainId: data.chain_id, activeTab: '__summary__' }
-    if (data.mode === 'chat') return { role: 'assistant', kind: 'chat', final: data }
-  } catch {
-    return { role: 'assistant', kind: 'chat', final: { answer: content } }
-  }
-  return { role: 'assistant', kind: 'error', error: '未知消息' }
-}
-
-function startPolling(sessionId) {
-  stopPolling()
-  if (!hasStreamingMessage()) return
-  pollTimer = setInterval(async () => {
-    if (store.sessionId !== sessionId) return
-    const data = await api.listMessages(sessionId)
-    if (store.sessionId !== sessionId) return
-    store.messages = data.messages.map((message) =>
-      message.role === 'user' ? { role: 'user', content: message.content } : parseStoredMessage(message.content),
-    )
-    if (!hasStreamingMessage()) stopPolling()
-  }, 2_000)
-}
-
-async function scrollBottom(sessionId = store.sessionId) {
-  await nextTick()
-  if (sessionId === store.sessionId && scroller.value) scroller.value.scrollTop = scroller.value.scrollHeight
-}
-
-function extractTrend(final) {
-  const rows = []
-  for (const role of Object.keys(final.sections || {})) {
-    for (const ev of final.sections[role].evidence || []) {
-      if (ev.operator === 'search_volume_trend') rows.push(...ev.rows)
-    }
-  }
-  return rows
+function upsertNode(role, patch) {
+  if (!runStore.snapshot) return
+  const node = runStore.snapshot.nodes?.find((item) => item.role === role)
+  if (node) Object.assign(node, patch)
 }
 
 async function send(text) {
-  const msg = (text ?? input.value).trim()
-  if (!msg || sending.value || !store.ready || !store.sessionId) return
-
-  const sessionId = store.sessionId
-  const requestController = new AbortController()
-  requestSessionId = sessionId
-  let timeoutMessage = ''
-  const markTimedOut = (message) => {
-    timeoutMessage = message
-    requestController.abort()
-  }
-  const resetIdleTimeout = () => {
-    if (idleTimeout) clearTimeout(idleTimeout)
-    idleTimeout = setTimeout(() => markTimedOut('响应长时间未返回，请重试'), IDLE_TIMEOUT_MS)
-  }
-
+  const message = (text ?? input.value).trim()
+  if (!message || sending.value || !store.sessionId) return
   input.value = ''
-  store.messages.push({ role: 'user', content: msg })
-  store.suggestSessionName(msg)
-  const assistant = {
-    role: 'assistant',
-    kind: 'loading',
-    experts: [],
-    final: null,
-    chainId: null,
-    startedAt: Date.now(),
-    streaming: true,
-  }
-  store.messages.push(assistant)
   sending.value = true
-  controller = requestController
-  startTimer()
-  resetIdleTimeout()
-  totalTimeout = setTimeout(() => markTimedOut('本次研判超时，请缩小问题范围后重试'), TOTAL_TIMEOUT_MS)
-  scrollBottom(sessionId)
-
+  controller = new AbortController()
+  store.suggestSessionName(message)
   try {
-    await streamChat({ session_id: sessionId, message: msg }, {
-      expert_start: (data) => {
-        upsertExpert(assistant, data.role, { label: data.label, status: 'working', error: null })
-        scrollBottom(sessionId)
+    await streamChat({ session_id: store.sessionId, message }, {
+      run_created: async ({ run_id: runId }) => {
+        await runStore.attach(runId)
       },
-      expert_done: (data) => {
-        upsertExpert(assistant, data.role, { status: 'done', error: data.error })
-        scrollBottom(sessionId)
+      expert_start: ({ role }) => upsertNode(role, { status: 'running' }),
+      expert_done: ({ role, error }) => upsertNode(role, { status: error ? 'failed' : 'succeeded', error }),
+      node_progress: ({ role, stage, elapsed_ms: elapsedMs }) => upsertNode(role, { stage, elapsed_ms: elapsedMs }),
+      clarification: async (data) => {
+        if (runStore.runId) await runStore.hydrate(runStore.runId)
+        else runStore.snapshot = { status: 'waiting_clarification', query: message, clarifications: data.clarifications || [] }
       },
-      clarification: (data) => {
-        assistant.kind = 'clarification'
-        assistant.clarification = data.message
-        assistant.streaming = false
-        scrollBottom(sessionId)
+      result: async (data) => {
+        if (runStore.runId) await runStore.hydrate(runStore.runId)
+        else runStore.snapshot = { status: 'succeeded', query: message, final: data, nodes: [], execution_plan: data.execution_plan }
+        await store.selectSession(store.sessionId)
       },
-      result: (data) => {
-        assistant.kind = data.mode || 'research'
-        assistant.final = data
-        assistant.chainId = data.chain_id
-        assistant.activeTab = '__summary__'
-        assistant.streaming = false
-        scrollBottom(sessionId)
-      },
-      error: (data) => {
-        assistant.kind = 'error'
-        assistant.error = data.message
-        assistant.streaming = false
-        scrollBottom(sessionId)
-      },
-    }, { signal: requestController.signal, onActivity: resetIdleTimeout })
-  } catch (e) {
-    if (store.sessionId === sessionId || e.name !== 'AbortError') {
-      assistant.kind = 'error'
-      assistant.error = timeoutMessage || `请求失败：${e.message}（后端是否已启动？）`
-      assistant.streaming = false
-    }
+      error: (data) => { runStore.error = data.message },
+    }, { signal: controller.signal })
+  } catch (error) {
+    if (error.name !== 'AbortError') runStore.error = error.message
   } finally {
-    if (assistant.streaming && store.sessionId === sessionId) {
-      assistant.streaming = false
-      assistant.kind = 'error'
-      assistant.error = '流式响应异常中断，请重试'
-    }
-    if (controller === requestController) {
-      controller = null
-      requestSessionId = null
-      clearRequestTimeouts()
-      sending.value = false
-      stopTimer()
-    }
-    if (store.sessionId === sessionId && assistant.streaming) startPolling(sessionId)
-    scrollBottom(sessionId)
+    controller = null
+    sending.value = false
   }
 }
 
 watch(
   () => store.sessionId,
-  (sessionId, previousSessionId) => {
-    if (previousSessionId && requestSessionId === previousSessionId) controller?.abort()
-    stopPolling()
-    stopTimer()
-    if (hasStreamingMessage() && sessionId) {
-      const running = store.messages.find((message) => message.role === 'assistant' && message.streaming)
-      startTimer(running?.startedAt)
-      startPolling(sessionId)
+  async () => {
+    runStore.disconnect()
+    const latest = [...store.messages].reverse().find((message) => message.final?.run_id || message.runId)
+    const runId = latest?.final?.run_id || latest?.runId
+    if (runId) {
+      try { await runStore.attach(runId) } catch { /* A historical chat-only entry may not have a persisted run. */ }
     }
   },
-)
-
-watch(
-  () => store.messages,
-  () => {
-    if (!controller && hasStreamingMessage() && store.sessionId) {
-      const running = store.messages.find((message) => message.role === 'assistant' && message.streaming)
-      startTimer(running?.startedAt)
-      startPolling(store.sessionId)
-    }
-  },
-  { deep: true },
 )
 
 onBeforeUnmount(() => {
   controller?.abort()
-  stopPolling()
-  clearRequestTimeouts()
-  stopTimer()
+  runStore.disconnect()
 })
 </script>
 
 <template>
-  <div class="research">
-    <div class="scope-bar" v-if="store.project">
-      <span class="dot" :class="{ ok: store.ready }"></span>
-      <span>后端已连接</span>
-      <span class="divider">·</span>
-      <span class="muted">项目：{{ store.project.name }}</span>
-      <span class="divider">·</span>
-      <span class="muted" :class="{ warn: !store.project.category_id }">
-        {{ store.project.category_id ? `范围：${store.project.category_id} / ${store.project.market_code}` : '范围待定（在会话中确认）' }}
-      </span>
-    </div>
+  <div class="research-shell">
+    <section class="canvas">
+      <header class="scope-bar">
+        <div class="scope-label"><span class="live"></span><span>{{ store.project?.name || '加载项目中' }}</span><span class="separator">/</span><span>{{ scope }}</span></div>
+        <span class="connection" :class="{ degraded: runStore.error }">{{ runStore.error || '受控数据研判' }}</span>
+      </header>
 
-    <div class="chat" ref="scroller">
-      <div class="empty-hint" v-if="store.ready && !sending && !store.messages.length">
-        <h2>出海参谋</h2>
-        <p>数据驱动，替你把跨境决策算出来。新会话从零开始，首次提问会先确认研判范围。试试：</p>
-        <button v-for="s in SUGGESTIONS" :key="s" class="suggest" :disabled="sending || !store.ready" @click="send(s)">{{ s }}</button>
+      <div class="canvas-scroll">
+        <DecisionWorkspace :run="runStore.snapshot" />
       </div>
 
-      <div v-for="(m, i) in store.messages" :key="i" class="row" :class="m.role">
-        <div v-if="m.role === 'user'" class="bubble user">{{ m.content }}</div>
-
-        <div v-else class="bubble assistant">
-          <div v-if="m.streaming" class="progress-line">
-            <span class="live-dot"></span> 推理中… 已运行 {{ elapsed }}s
-          </div>
-          <div v-if="m.experts && m.experts.length" class="experts">
-            <span
-              v-for="e in m.experts"
-              :key="e.role"
-              class="chip"
-              :class="{ working: e.status === 'working', done: e.status === 'done', err: e.error }"
-            >
-              {{ e.label }}{{ e.status === 'done' ? (e.error ? ' ⚠' : ' ✓') : ' …' }}
-            </span>
-          </div>
-
-          <div v-if="m.kind === 'clarification'" class="clarify">{{ m.clarification }}</div>
-          <div v-else-if="m.kind === 'error'" class="error">{{ m.error }}</div>
-          <div v-else-if="m.kind === 'chat'" class="chat-text">{{ m.final?.answer }}</div>
-          <template v-else-if="m.final && m.kind === 'research'">
-            <div class="result-card">
-              <div class="tabs" v-if="buildTabs(m.final).length > 1">
-                <button
-                  v-for="t in buildTabs(m.final)"
-                  :key="t.key"
-                  class="tab"
-                  :class="{ active: m.activeTab === t.key }"
-                  @click="setTab(m, t.key)"
-                >
-                  {{ t.label }}
-                </button>
-              </div>
-
-              <!-- 主 tab：总结 -->
-              <div class="tab-body" v-if="m.activeTab === '__summary__'">
-                <div class="rewritten" v-if="m.final.rewritten">{{ m.final.rewritten }}</div>
-                <ConclusionCard title="决策摘要" :conclusion="m.final.answer || {}" :accent="true" />
-                <TrendChart v-if="extractTrend(m.final).length" :data="extractTrend(m.final)" title="类目搜索量趋势" />
-                <router-link v-if="m.chainId" class="evidence-link" :to="`/evidence/${m.chainId}`">
-                  查看证据链 →
-                </router-link>
-              </div>
-
-              <!-- 子 tab：各节点结果 -->
-              <div
-                v-for="t in buildTabs(m.final)"
-                :key="t.key"
-                class="tab-body"
-                v-if="t.key !== '__summary__' && m.activeTab === t.key"
-              >
-                <div class="rewritten" v-if="m.final.rewritten">{{ m.final.rewritten }}</div>
-                <ConclusionCard :title="t.label" :conclusion="t.data.conclusion || {}" />
-                <div class="muted note" v-if="t.data.error">异常：{{ t.data.error }}</div>
-                <div class="muted note" v-else-if="t.data.skipped && t.data.skipped.length">
-                  跳过 {{ t.data.skipped.length }} 个数据项（{{ t.data.skipped.map((s) => s.operator).join('、') }}）
-                </div>
-              </div>
-            </div>
-          </template>
-          <div v-else-if="!m.streaming && m.kind === 'loading'" class="error">（加载中…）</div>
-        </div>
+      <form ref="composer" class="composer" @submit.prevent="send()">
+        <input v-model="input" :disabled="sending" placeholder="提出一个跨境经营问题，例如：美国站 TWS 耳机怎样定价？" />
+        <button type="submit" :disabled="sending || !input.trim()">{{ sending ? '运行中' : '开始研判' }}</button>
+      </form>
+      <div class="suggestions" v-if="!runStore.snapshot">
+        <button v-for="item in suggestions" :key="item" :disabled="sending" @click="send(item)">{{ item }}</button>
       </div>
-    </div>
+    </section>
 
-    <div class="input-bar">
-      <input
-        v-model="input"
-        placeholder="输入你的研判问题，例如：这个品类值得做吗？"
-        @keyup.enter="send()"
-        :disabled="sending || !store.ready"
+    <aside class="inspector">
+      <RunTimeline
+        :nodes="runStore.planNodes"
+        :run-nodes="runStore.snapshot?.nodes || []"
+        :status="runStore.snapshot?.status"
       />
-      <button @click="send()" :disabled="sending || !store.ready || !input.trim()">发送</button>
-    </div>
+      <div v-if="runStore.isRunning" class="inspector-actions">
+        <span>{{ runStore.connected ? '已连接运行事件' : '正在重连运行事件' }}</span>
+        <button @click="runStore.cancel">取消本次运行</button>
+      </div>
+    </aside>
   </div>
 </template>
 
 <style scoped>
-.research { display: flex; flex-direction: column; height: 100%; }
-.scope-bar {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 20px; border-bottom: 1px solid var(--border);
-  background: var(--panel); font-size: 12px; color: var(--text); flex-shrink: 0;
-}
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.dot.ok { background: var(--ok); }
-.divider { color: var(--muted); }
-.muted { color: var(--muted); }
-.warn { color: var(--warn); }
-.chat { flex: 1; overflow-y: auto; padding: 20px; }
-.empty-hint { text-align: center; margin-top: 60px; color: var(--muted); }
-.empty-hint h2 { color: var(--text); }
-.suggest {
-  display: block; margin: 8px auto; padding: 10px 18px;
-  background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
-  color: var(--text); cursor: pointer;
-}
-.suggest:hover { border-color: var(--accent); }
-.row { margin-bottom: 16px; }
-.bubble { max-width: 82%; }
-.bubble.user { margin-left: auto; background: var(--accent); padding: 10px 14px; border-radius: 14px; }
-.bubble.assistant { margin-right: auto; }
-.progress-line { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
-.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); animation: pulse 1.2s infinite; }
-.experts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.chip { font-size: 12px; padding: 3px 10px; border-radius: 12px; background: #22304c; }
-.chip.working { color: var(--warn); }
-.chip.done { color: var(--ok); }
-.chip.err { color: var(--warn); }
-@keyframes pulse { 50% { opacity: 0.4; } }
-.clarify { padding: 12px; background: var(--panel); border: 1px solid var(--warn); border-radius: 10px; }
-.error { color: var(--warn); }
-.chat-text { line-height: 1.7; }
-.result-card { margin-top: 8px; }
-.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
-.tab {
-  border: 1px solid var(--border); background: transparent; color: var(--muted);
-  padding: 4px 12px; border-radius: 14px; cursor: pointer; font-size: 12px;
-}
-.tab.active { color: var(--text); background: #22304c; border-color: var(--accent); }
-.tab-body { margin-top: 10px; }
-.rewritten {
-  color: var(--accent); font-weight: 600; font-size: 13px; margin-bottom: 8px;
-}
-.note { color: var(--warn); font-size: 12px; margin-top: 8px; }
-.muted { color: var(--muted); font-size: 12px; }
-.evidence-link { display: inline-block; margin-top: 12px; color: var(--accent); text-decoration: none; }
-.input-bar { display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border); background: var(--panel); flex-shrink: 0; }
-.input-bar input {
-  flex: 1; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border);
-  background: var(--bg); color: var(--text); outline: none;
-}
-.input-bar button {
-  padding: 0 20px; border: none; border-radius: 10px; background: var(--accent);
-  color: #fff; cursor: pointer; font-weight: 600;
-}
-.input-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
+.research-shell { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 330px; overflow: hidden; background: radial-gradient(circle at 42% -20%, #1c3267 0, transparent 38%), #0b101b; }
+.canvas { min-width: 0; display: flex; flex-direction: column; border-right: 1px solid #26324a; }.scope-bar { padding: 14px 22px; min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #26324a; color: #9caac4; font-size: 12px; }.scope-label { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.live { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 0 4px rgba(74,222,128,.08); }.separator { color: #4c5d7c; }.connection { color: #6f84af; white-space: nowrap; }.connection.degraded { color: #fbbf24; }.canvas-scroll { flex: 1; overflow-y: auto; padding: clamp(16px, 3vw, 36px); }.composer { display: flex; gap: 9px; margin: 0 22px 10px; padding: 7px; background: rgba(24, 33, 52, .85); border: 1px solid #314261; border-radius: 14px; box-shadow: 0 -12px 50px rgba(2,6,15,.2); }.composer input { flex: 1; min-width: 0; border: 0; outline: 0; color: #edf3ff; background: transparent; padding: 8px 10px; font: inherit; }.composer input::placeholder { color: #71809c; }.composer button { border: 0; border-radius: 9px; background: linear-gradient(135deg, #4f8cff, #6e5eff); color: white; padding: 0 14px; font-weight: 650; cursor: pointer; }.composer button:disabled { opacity: .5; cursor: not-allowed; }.suggestions { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 26px 16px; }.suggestions button { background: transparent; color: #8ea8dd; border: 1px solid #334666; border-radius: 999px; padding: 5px 10px; cursor: pointer; font-size: 11px; }.suggestions button:hover { border-color: #759df8; color: #c7d8ff; }
+.inspector { overflow-y: auto; padding: 20px 16px; background: rgba(13, 19, 31, .88); }.inspector-actions { position: sticky; bottom: -20px; display: flex; flex-direction: column; gap: 9px; padding: 16px 0 0; margin-top: 16px; background: linear-gradient(to top, #0d131f 72%, transparent); color: #71809c; font-size: 11px; }.inspector-actions button { border: 1px solid #674137; background: #2b1c1a; color: #fbbf24; padding: 8px; border-radius: 8px; cursor: pointer; }
+@media (max-width: 1120px) { .research-shell { grid-template-columns: minmax(0, 1fr) 280px; } }.inspector { padding: 16px 12px; }
+@media (max-width: 820px) { .research-shell { display: flex; flex-direction: column; overflow: auto; }.canvas { min-height: 74vh; border-right: 0; }.inspector { border-top: 1px solid #26324a; overflow: visible; }.scope-bar { padding: 12px 16px; }.connection { display: none; }.composer { margin: 0 16px 9px; }.suggestions { padding: 0 18px 14px; } }
 </style>

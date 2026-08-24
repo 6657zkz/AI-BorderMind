@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from ..base import ExpertAgent
 
 
@@ -11,7 +9,6 @@ class FeedbackAnalyst(ExpertAgent):
     role = "feedback_analyst"
     display_name = "差评机会分析师"
     description = "分析评论差评分布与根因，识别未满足需求缺口"
-    operators: ClassVar[list[str]] = ["aspect_complaint_share", "review_sentiment"]
     system_prompt = """你是差评机会分析师，用户声音的翻译官。你坚信一条铁律：**差评即需求**——用户抱怨最多的地方，就是现有产品没做好的地方，也就是新品的机会点。
 
 ## 你的分析框架

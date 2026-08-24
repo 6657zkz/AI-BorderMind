@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from ..base import ExpertAgent
 
 
@@ -11,9 +9,6 @@ class SelectionScore(ExpertAgent):
     role = "selection_score"
     display_name = "选品综合评分节点"
     description = "整合需求/竞争/价格/差评维度，输出选品机会加权评分"
-    needs_data: ClassVar[bool] = False
-    operators: ClassVar[list[str]] = []
-    depends_on: ClassVar[list[str]] = ["demand_researcher", "competitive_analyst", "price_band_analyst", "feedback_analyst"]
     system_prompt = """你是选品综合评分节点，选品方向的最终收口。上游各专家（需求趋势/竞争格局/价格带/差评机会）的结论是你的输入，你负责把它们合成一个可决策的结论。
 
 ## 你的评分模型

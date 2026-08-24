@@ -37,4 +37,10 @@ export const api = {
 
   getEvidence: (chainId) => request(`/evidence/${chainId}`),
   recentChains: (limit = 10) => request(`/evidence/recent?limit=${limit}`),
+
+  getAnalysisRun: (runId) => request(`/analysis-runs/${runId}`),
+  getRunEvidence: (runId) => request(`/analysis-runs/${runId}/evidence`),
+  submitClarification: (runId, payload) =>
+    request(`/analysis-runs/${runId}/clarifications`, { method: 'POST', body: JSON.stringify(payload) }),
+  cancelAnalysisRun: (runId) => request(`/analysis-runs/${runId}/cancel`, { method: 'POST' }),
 }

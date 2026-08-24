@@ -2,13 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from app.planning import (
-    DecisionGraph,
-    DecisionNode,
-    DecisionNodeKind,
-    PlanningError,
-    compile_plan,
-)
+from app.agents.registry import AGENTS
+from app.operators import OPERATORS
+from app.planning import DecisionGraph, DecisionNode, DecisionNodeKind, PlanningError, compile_plan
+from app.planning.catalog import CAPABILITIES, catalog_entries, validate_catalog
 
 
 def graph_for(*goals: str, capabilities: tuple[str, ...] = ()) -> DecisionGraph:
@@ -45,6 +42,18 @@ def test_combined_selection_and_pricing_plan_shares_price_band_once() -> None:
         "competitor_benchmark",
     }
     assert set(nodes["executive_expert"].depends_on) == {"selection_score", "pricing_optimizer"}
+    assert nodes["pricing_optimizer"].analysis_task_id == "pricing_recommendation"
+    assert nodes["pricing_optimizer"].expert_role_id == "pricing_optimizer"
+    assert nodes["pricing_optimizer"].data_capability_ids == [
+        "pricing_band",
+        "price_percentile",
+        "internal_sku_query",
+    ]
+    assert nodes["pricing_optimizer"].output_contract == [
+        "pricing_recommendation",
+        "recommended_price",
+        "price_range",
+    ]
     assert plan.clarifications == []
 
 
@@ -79,3 +88,26 @@ def test_plan_layers_expose_parallel_data_work() -> None:
     }
     assert set(layers[1]) == {"pricing_optimizer", "selection_score"}
     assert layers[2] == ["executive_expert"]
+
+
+def test_catalog_matches_discovered_personas_and_operators() -> None:
+    assert validate_catalog(persona_roles=AGENTS, operator_ids=OPERATORS) == []
+    assert {entry["role"] for entry in catalog_entries(include_legacy=True)} == set(AGENTS)
+
+
+def test_disabled_capability_is_rejected_from_new_plan() -> None:
+    with pytest.raises(PlanningError, match="当前未开放规划能力"):
+        compile_plan(graph_for("competitive_strategy"))
+
+    with pytest.raises(PlanningError, match="当前未开放规划能力"):
+        compile_plan(graph_for("product_selection", capabilities=("search_gap_analyst",)))
+
+
+def test_catalog_authorizes_persona_data_access() -> None:
+    capability = CAPABILITIES["cost_modeler"]
+
+    assert capability.operator_specs == [
+        "internal_sku_query",
+        ("supply_signal_query", {"signal_type": "freight_index"}),
+        ("supply_signal_query", {"signal_type": "fx_rate"}),
+    ]

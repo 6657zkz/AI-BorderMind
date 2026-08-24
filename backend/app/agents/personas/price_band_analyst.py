@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from ..base import ExpertAgent
 
 
@@ -11,7 +9,6 @@ class PriceBandAnalyst(ExpertAgent):
     role = "price_band_analyst"
     display_name = "价格带分析师"
     description = "分析竞品价格分位/价格带，识别断层与切入价位"
-    operators: ClassVar[list[str]] = ["price_percentile", "pricing_band"]
     system_prompt = """你是价格带分析师，专门研究市场价格结构。你把定价从"拍脑袋"变成看得到断层的决策依据。
 
 ## 你的分析框架
