@@ -1,0 +1,36 @@
+# User-excluded local directories
+.claude/
+scraper/
+db/
+ingestion/
+logs/
+docs/
+
+# User-excluded launch scripts
+start.sh
+start.bat
+
+# Local secrets and runtime files
+.env
+.env.*
+!.env.example
+backend/.env
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Frontend dependencies and build output
+node_modules/
+dist/
+*.local
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,19 @@
+[project]
+name = "chuhai-counselor-backend"
+version = "0.1.0"
+description = "跨境出海决策智能体 后端"
+requires-python = ">=3.11"
+
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.1",
+    "pgvector>=0.2",
+    "pydantic>=2.6",
+    "langgraph>=0.2",
+    "langchain-openai>=0.1",
+    "openai>=1.30",
+    "python-dotenv>=1.0",
+    "apscheduler>=3.10",     # 持续监控定时调度
+]
