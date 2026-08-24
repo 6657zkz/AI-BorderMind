@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { api } from '../api/client'
 
 const TERMINAL_STATUSES = new Set(['succeeded', 'partial_succeeded', 'failed', 'timed_out', 'cancelled'])
+const STREAMING_STATUSES = new Set(['planning', 'planned', 'running'])
 
 export const useAnalysisRunStore = defineStore('analysisRun', {
   state: () => ({
@@ -14,7 +15,8 @@ export const useAnalysisRunStore = defineStore('analysisRun', {
   }),
 
   getters: {
-    isRunning: (state) => Boolean(state.snapshot && !TERMINAL_STATUSES.has(state.snapshot.status)),
+    isRunning: (state) => Boolean(state.snapshot && STREAMING_STATUSES.has(state.snapshot.status)),
+    canCancel: (state) => Boolean(state.snapshot && !TERMINAL_STATUSES.has(state.snapshot.status)),
     planNodes: (state) => state.snapshot?.execution_plan?.nodes || [],
     nodeMap: (state) => Object.fromEntries((state.snapshot?.nodes || []).map((node) => [node.node_id, node])),
   },
@@ -29,6 +31,7 @@ export const useAnalysisRunStore = defineStore('analysisRun', {
 
     async attach(runId) {
       this.disconnect()
+      this.lastSeq = 0
       await this.hydrate(runId)
       if (this.isRunning) this.connect()
     },

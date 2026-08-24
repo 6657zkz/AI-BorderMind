@@ -55,7 +55,7 @@ function roleName(node) {
       <span class="run-status" :class="status">{{ status || 'planning' }}</span>
     </div>
 
-    <div v-if="!nodes.length" class="empty">计划生成后将在这里展示执行节点。</div>
+    <div v-if="!nodes.length" class="empty">{{ status === 'waiting_clarification' ? '补齐决策前提后将在这里生成执行计划。' : '计划生成后将在这里展示执行节点。' }}</div>
     <div v-for="(layer, index) in layers" :key="index" class="layer">
       <div class="layer-title">第 {{ index + 1 }} 层 <span>可并行</span></div>
       <article v-for="node in layer" :key="node.id" class="node" :class="nodeState(node)">

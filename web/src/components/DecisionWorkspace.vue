@@ -46,7 +46,7 @@ async function submit(need) {
     <div v-if="run.status === 'waiting_clarification'" class="clarification-card">
       <p class="eyebrow">INPUT REQUIRED</p>
       <h2>补齐决策前提</h2>
-      <div v-for="need in run.clarifications.filter((item) => item.status === 'waiting')" :key="need.field_id" class="clarification-row">
+      <div v-for="need in run.clarifications.filter((item) => !item.status || item.status === 'waiting')" :key="need.field_id" class="clarification-row">
         <label :for="need.field_id">{{ need.question }}</label>
         <div class="quick-options" v-if="need.options?.length">
           <button v-for="option in need.options" :key="option" type="button" @click="answers[need.field_id] = option">{{ option }}</button>

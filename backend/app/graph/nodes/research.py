@@ -33,7 +33,13 @@ def plan_node(state: dict[str, Any]) -> dict[str, Any]:
     ctx = state["project_ctx"] or {}
     if not ctx.get("category_id") or not ctx.get("market_code"):
         logger.info("plan=clarification(缺品类/市场) ctx=%s", ctx)
-        return {"clarification": "本次研判需要先确认两个前提：面向哪个品类、哪个目标市场？（例如：TWS 耳机 / 美国站 / 印度尼西亚）"}
+        clarification = {
+            "field_id": "scope",
+            "question": "请补充研判范围：面向哪个品类、哪个目标市场？例如：TWS 耳机，美国站。",
+            "options": [],
+            "required_for": ["scope"],
+        }
+        return {"clarification": clarification["question"], "clarifications": [clarification]}
     logger.info("plan=proceed ctx=%s", ctx)
     return {"clarification": None}
 

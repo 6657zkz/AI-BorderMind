@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import sessionmaker
 
 from app.db import (
+    AnalysisClarification,
     AnalysisRun,
     Base,
     EvidenceChainRecord,
@@ -18,6 +19,7 @@ from app.db import (
     Session as SessionModel,
 )
 from app.evidence import (
+    cancel_analysis_run,
     complete_analysis_run,
     create_analysis_run,
     finish_node_run,
@@ -200,7 +202,65 @@ def test_clarification_keeps_run_open(trace_db) -> None:
     assert stored_run.final_json == final
 
 
-def test_analysis_node_run_reuses_run_node_identity(trace_db) -> None:
+def test_bare_clarification_completes_run(trace_db) -> None:
+    db, session_id, message_id = trace_db
+    run = create_analysis_run(
+        db,
+        session_id=session_id,
+        user_message_id=message_id,
+        query="美国站 TWS 耳机如何定价",
+        project_ctx={"project_id": "test"},
+    )
+
+    complete_analysis_run(
+        db,
+        run_id=run.run_id,
+        final={"mode": "research", "clarification": "请补充更多信息"},
+        decision_graph=None,
+        execution_plan=None,
+    )
+
+    db.expire_all()
+    stored_run = db.get(AnalysisRun, run.run_id)
+    assert stored_run.status == "succeeded"
+    assert stored_run.completed_at is not None
+    assert db.execute(
+        select(AnalysisClarification).where(AnalysisClarification.run_id == run.run_id)
+    ).scalars().all() == []
+
+
+def test_cancelled_run_closes_pending_clarifications(trace_db) -> None:
+    db, session_id, message_id = trace_db
+    run = create_analysis_run(
+        db,
+        session_id=session_id,
+        user_message_id=message_id,
+        query="美国站 TWS 耳机如何定价",
+        project_ctx={"project_id": "test"},
+    )
+    complete_analysis_run(
+        db,
+        run_id=run.run_id,
+        final={
+            "mode": "research",
+            "clarification": "你的目标毛利率是多少？",
+            "clarifications": [{"field_id": "target_margin", "question": "你的目标毛利率是多少？"}],
+        },
+        decision_graph=None,
+        execution_plan=None,
+    )
+
+    cancelled = cancel_analysis_run(db, run_id=run.run_id)
+
+    assert cancelled is not None
+    assert cancelled.status == "cancelled"
+    assert cancelled.completed_at is not None
+    assert db.execute(
+        select(AnalysisClarification.status).where(AnalysisClarification.run_id == run.run_id)
+    ).scalar_one() == "cancelled"
+
+
+
     db, session_id, message_id = trace_db
     run = create_analysis_run(
         db,

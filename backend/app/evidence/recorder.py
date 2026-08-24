@@ -204,6 +204,28 @@ def answer_clarification(
     return record
 
 
+def cancel_analysis_run(db: Session, *, run_id: str) -> AnalysisRun | None:
+    run = db.execute(
+        select(AnalysisRun).where(AnalysisRun.run_id == run_id).with_for_update()
+    ).scalar_one_or_none()
+    if run is None or run.status in {"succeeded", "partial_succeeded", "failed", "timed_out", "cancelled"}:
+        return run
+    run.status = "cancelled"
+    run.completed_at = datetime.now(timezone.utc)
+    clarifications = db.execute(
+        select(AnalysisClarification).where(
+            AnalysisClarification.run_id == run_id,
+            AnalysisClarification.status == "waiting",
+        )
+    ).scalars()
+    for clarification in clarifications:
+        clarification.status = "cancelled"
+    append_run_event(db, run_id=run_id, event_type="run_cancelled", payload={"status": run.status})
+    db.commit()
+    db.refresh(run)
+    return run
+
+
 def get_run_snapshot(db: Session, run_id: str) -> dict[str, Any] | None:
     run = db.get(AnalysisRun, run_id)
     if run is None:
@@ -493,9 +515,10 @@ def complete_analysis_run(
     stored_final = copy.deepcopy(_json_safe(final))
     stored_final.setdefault("run_id", run_id)
     chain: EvidenceChain | None = None
-    if final.get("clarification"):
+    clarification_needs = final.get("clarifications") or []
+    if final.get("clarification") and clarification_needs:
         run.status = "waiting_clarification"
-        record_clarifications(db, run_id=run_id, needs=final.get("clarifications") or [])
+        record_clarifications(db, run_id=run_id, needs=clarification_needs)
     elif final.get("mode") == "research":
         chain = build_chain(
             db,

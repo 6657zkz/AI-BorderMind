@@ -24,6 +24,13 @@ const scope = computed(() => {
   return `${store.project.category_id} · ${store.project.market_code || '市场待确认'}`
 })
 
+async function cancelRun() {
+  controller?.abort()
+  controller = null
+  sending.value = false
+  await runStore.cancel()
+}
+
 function upsertNode(role, patch) {
   if (!runStore.snapshot) return
   const node = runStore.snapshot.nodes?.find((item) => item.role === role)
@@ -109,9 +116,9 @@ onBeforeUnmount(() => {
         :run-nodes="runStore.snapshot?.nodes || []"
         :status="runStore.snapshot?.status"
       />
-      <div v-if="runStore.isRunning" class="inspector-actions">
-        <span>{{ runStore.connected ? '已连接运行事件' : '正在重连运行事件' }}</span>
-        <button @click="runStore.cancel">取消本次运行</button>
+      <div v-if="runStore.canCancel" class="inspector-actions">
+        <span>{{ runStore.isRunning ? (runStore.connected ? '已连接运行事件' : '正在重连运行事件') : '等待补充决策前提' }}</span>
+        <button @click="cancelRun">取消本次运行</button>
       </div>
     </aside>
   </div>

@@ -32,6 +32,18 @@ def planned_request(*, with_margin: bool):
     )
 
 
+def test_plan_node_requests_scope_as_structured_clarification() -> None:
+    update = research.plan_node({"mode": "research", "project_ctx": {}})
+
+    assert update["clarification"] == "请补充研判范围：面向哪个品类、哪个目标市场？例如：TWS 耳机，美国站。"
+    assert update["clarifications"] == [
+        {
+            "field_id": "scope",
+            "question": update["clarification"],
+            "options": [],
+            "required_for": ["scope"],
+        }
+    ]
 def test_rewrite_node_uses_compiled_plan_roles(monkeypatch) -> None:
     planned = planned_request(with_margin=True)
     monkeypatch.setattr(research, "plan_request", lambda *args, **kwargs: planned)
