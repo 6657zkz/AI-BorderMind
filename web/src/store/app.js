@@ -26,6 +26,7 @@ export const useAppStore = defineStore('app', {
     sessions: [],
     sessionId: null,
     messages: [],
+    sessionRuns: [],
   }),
   actions: {
     async init() {
@@ -72,11 +73,16 @@ export const useAppStore = defineStore('app', {
       const projectId = this.projectId
       this.sessionId = sid
       this.messages = []
-      const d = await api.listMessages(sid)
+      this.sessionRuns = []
+      const [messagesResult, runsResult] = await Promise.all([
+        api.listMessages(sid),
+        api.listSessionRuns(sid),
+      ])
       if (epoch !== loadEpoch || this.projectId !== projectId || this.sessionId !== sid) return
-      this.messages = d.messages.map((m) =>
+      this.messages = messagesResult.messages.map((m) =>
         m.role === 'user' ? { role: 'user', content: m.content } : parseStoredMessage(m.content),
       )
+      this.sessionRuns = runsResult.runs
     },
 
     async newSession() {

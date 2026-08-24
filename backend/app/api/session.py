@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
-from ..db import Message, Project, Session as SessionModel, get_db
+from ..db import AnalysisClarification, AnalysisRun, Message, Project, Session as SessionModel, get_db
 from ..project import create_project, delete_project, get_project, rename_project
 from ..session import create_session, delete_session, get_session, rename_session
 from .schemas import ProjectCreate, SessionCreate
@@ -133,6 +133,38 @@ def api_list_messages(session_id: str, db: DbSession = Depends(get_db)):
         .order_by(Message.id)
     ).scalars().all()
     return {"messages": [{"role": m.role, "content": m.content} for m in rows]}
+
+
+@router.get("/session/{session_id}/analysis-runs")
+def api_list_session_analysis_runs(session_id: str, db: DbSession = Depends(get_db)):
+    session = get_session(db, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    runs = db.execute(
+        select(AnalysisRun)
+        .where(AnalysisRun.session_id == session_id)
+        .order_by(AnalysisRun.started_at.desc())
+    ).scalars().all()
+    result = []
+    for run in runs:
+        waiting_count = db.execute(
+            select(func.count())
+            .select_from(AnalysisClarification)
+            .where(
+                AnalysisClarification.run_id == run.run_id,
+                AnalysisClarification.status == "waiting",
+            )
+        ).scalar()
+        result.append({
+            "run_id": run.run_id,
+            "query": run.query,
+            "status": run.status,
+            "started_at": run.started_at.isoformat(),
+            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+            "waiting_clarification_count": waiting_count,
+            "user_message_id": run.user_message_id,
+        })
+    return {"runs": result}
 
 
 @router.get("/session/{session_id}")

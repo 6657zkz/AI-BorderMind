@@ -45,6 +45,18 @@ async function cancelRun() {
 async function send(text) {
   const message = (text ?? input.value).trim()
   if (!message || sending.value || !store.sessionId) return
+  if (runStore.snapshot?.status === 'waiting_clarification') {
+    const waiting = runStore.snapshot.clarifications?.filter((item) => item.status === 'waiting') || []
+    if (waiting.length === 1) {
+      sending.value = true
+      try {
+        await runStore.submitClarification(waiting[0].field_id, message)
+      } finally {
+        sending.value = false
+      }
+      return
+    }
+  }
   const context = {
     requestId: ++requestId,
     sessionId: store.sessionId,
@@ -109,10 +121,10 @@ watch(
     controller = null
     sending.value = false
     runStore.reset()
-    const latest = [...store.messages].reverse().find((message) => message.final?.run_id || message.runId)
-    const runId = latest?.final?.run_id || latest?.runId
-    if (runId) {
-      try { await runStore.attach(runId) } catch { /* Historical chat-only entry. */ }
+    const active = store.sessionRuns.find((run) => run.status === 'waiting_clarification' || ['planning', 'planned', 'running'].includes(run.status))
+      || store.sessionRuns[0]
+    if (active) {
+      try { await runStore.attach(active.run_id) } catch { runStore.error = '无法恢复该会话的研判运行' }
     }
   },
 )

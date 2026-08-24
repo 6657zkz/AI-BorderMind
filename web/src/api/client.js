@@ -28,6 +28,7 @@ export const api = {
   createSession: (payload) => request('/session', { method: 'POST', body: JSON.stringify(payload) }),
   listSessions: (projectId) => request(`/sessions?project_id=${encodeURIComponent(projectId)}`),
   listMessages: (sessionId) => request(`/messages?session_id=${encodeURIComponent(sessionId)}`),
+  listSessionRuns: (sessionId) => request(`/session/${encodeURIComponent(sessionId)}/analysis-runs`),
   renameSession: (id, name) => request(`/session/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
   deleteSession: (id) => request(`/session/${id}`, { method: 'DELETE' }),
 
