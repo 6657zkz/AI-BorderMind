@@ -20,7 +20,7 @@ from ..evidence import (
     get_run_events,
     get_run_snapshot,
 )
-from ..project import apply_profile_field
+from ..project import apply_decision_parameter
 from ..session import append_message, resolve_context
 from .schemas import ClarificationAnswerRequest
 
@@ -66,22 +66,15 @@ def submit_clarification(
         raise HTTPException(status_code=409, detail="研判运行当前不可续跑")
 
     project_ctx = resolve_context(db, run.session_id)
-    if body.field_id == "target_margin":
-        from ..project import parse_target_margin
-
-        margin = parse_target_margin(body.value)
-        if margin is None:
-            raise HTTPException(status_code=422, detail="目标毛利率格式无效")
-        apply_profile_field(db, project_ctx["project_id"], "target_margin", margin)
-    elif body.field_id == "scope":
+    if body.field_id == "scope":
         from ..project import apply_scope, parse_scope
 
         scope = parse_scope(db, body.value)
         if scope is None:
             raise HTTPException(status_code=422, detail="请同时提供品类和目标市场，例如：TWS 耳机，美国站")
         apply_scope(db, project_ctx["project_id"], scope)
-    else:
-        raise HTTPException(status_code=422, detail="暂不支持该澄清字段")
+    elif apply_decision_parameter(db, project_ctx["project_id"], body.field_id, body.value) is None:
+        raise HTTPException(status_code=422, detail="决策参数不存在或格式无效")
 
     user_message = append_message(db, run.session_id, "user", body.value)
     record = answer_clarification(

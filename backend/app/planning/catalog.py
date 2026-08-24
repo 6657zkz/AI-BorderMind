@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from ..project.decision_parameters import DECISION_PARAMETERS
 from .contracts import ClarificationNeed, DataRequirement, PlanningError
 
 
@@ -264,5 +265,8 @@ def validate_catalog(*, persona_roles: Iterable[str], operator_ids: Iterable[str
         for capability_id in decision_type.required_capabilities + decision_type.optional_capabilities:
             if capability_id not in CAPABILITIES:
                 errors.append(f"决策类型 {decision_type.id} 引用了未注册能力 {capability_id}")
+        for requirement in decision_type.profile_requirements:
+            if requirement.field_id not in DECISION_PARAMETERS:
+                errors.append(f"决策类型 {decision_type.id} 引用了未注册决策参数 {requirement.field_id}")
 
     return errors

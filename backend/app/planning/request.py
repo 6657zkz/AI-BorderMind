@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from ..project import extract_decision_parameters
 from ..llm import get_client
 from .catalog import CAPABILITIES, DECISION_TYPES, KNOWN_ENTITIES, KNOWN_METRICS
 from .compiler import compile_plan
@@ -42,14 +43,10 @@ def plan_request(
     project_ctx = project_ctx or {}
     candidate = _candidate(query, project_ctx, llm or get_client())
     graph = _decision_graph(query, project_ctx, candidate)
-    profile = dict(project_ctx.get("profile") or {})
-    if project_ctx.get("target_margin") not in (None, ""):
-        profile["target_margin"] = project_ctx["target_margin"]
-    from ..project import parse_target_margin
-
-    query_margin = parse_target_margin(query)
-    if query_margin is not None:
-        profile["target_margin"] = query_margin
+    profile = {
+        **dict(project_ctx.get("profile") or {}),
+        **extract_decision_parameters(query),
+    }
     return PlannedRequest(
         title=candidate["title"],
         decision_graph=graph,

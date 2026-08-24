@@ -29,7 +29,15 @@ from ..evidence import (
     get_run_snapshot,
 )
 from ..graph import workflow
-from ..project import apply_product, apply_profile_field, apply_scope, parse_scope, parse_target_margin, top_products
+from ..project import (
+    apply_decision_parameter,
+    apply_product,
+    apply_scope,
+    extract_decision_parameters,
+    parse_decision_parameter,
+    parse_scope,
+    top_products,
+)
 from ..session import append_message, get_session, resolve_context, update_message
 from .schemas import ChatRequest
 
@@ -96,13 +104,11 @@ def _resolve_clarification_answer(
     if len(rows) != 1:
         return None
     run, clarification = rows[0]
-    if clarification.field_id != "target_margin":
-        return None
-    target_margin = parse_target_margin(message)
-    if target_margin is None:
+    if parse_decision_parameter(clarification.field_id, message) is None:
         return None
     project_ctx = resolve_context(db, session_id)
-    apply_profile_field(db, project_ctx["project_id"], "target_margin", target_margin)
+    if apply_decision_parameter(db, project_ctx["project_id"], clarification.field_id, message) is None:
+        return None
     return resolve_context(db, session_id), run.query, run.run_id
 
 
@@ -123,9 +129,10 @@ def _resolve_scope(db: DbSession, session_id: str, message: str) -> tuple[dict[s
             project_ctx = resolve_context(db, session_id)
             acks.append(f"已确认研判范围：{scope['category_name']} · {scope.get('market_name') or scope['market_code']}")
 
-    target_margin = parse_target_margin(message)
-    if target_margin is not None:
-        apply_profile_field(db, project_ctx["project_id"], "target_margin", target_margin)
+    parameters = extract_decision_parameters(message)
+    for field_id, value in parameters.items():
+        apply_decision_parameter(db, project_ctx["project_id"], field_id, value)
+    if parameters:
         project_ctx = resolve_context(db, session_id)
 
     # 竞品级意图 + 无竞品 → 自动锁定类目头部竞品直接分析（不再反问「针对哪个」）

@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import re
 import uuid
 from typing import Any
 
@@ -131,28 +130,6 @@ def apply_product(db: Session, project_id: str, product_id: str) -> Project | No
     db.commit()
     db.refresh(project)
     return project
-
-
-def apply_profile_field(db: Session, project_id: str, field_id: str, value: str) -> Project | None:
-    project = db.get(Project, project_id)
-    if project is None:
-        return None
-    profile = dict(project.profile_json or {})
-    profile[field_id] = value
-    project.profile_json = profile
-    db.commit()
-    db.refresh(project)
-    return project
-
-
-def parse_target_margin(message: str) -> str | None:
-    matches = re.findall(r"(\d{1,2}(?:\.\d+)?)\s*%", message)
-    if not matches:
-        return None
-    value = float(matches[-1])
-    if not 0 < value < 100:
-        return None
-    return f"{value:g}%"
 
 
 def top_products(db: Session, category_id: str, limit: int = 3) -> list[tuple[str, str]]:

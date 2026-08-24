@@ -1,6 +1,12 @@
 """项目上下文：service（CRUD / 画像 / project_ctx 组装）+ scope（范围澄清持久化）。"""
 
-from .scope import apply_product, apply_profile_field, apply_scope, parse_scope, parse_target_margin, top_products
+from .decision_parameters import (
+    DECISION_PARAMETERS,
+    apply_decision_parameter,
+    extract_decision_parameters,
+    parse_decision_parameter,
+)
+from .scope import apply_product, apply_scope, parse_scope, top_products
 from .service import (
     build_context,
     create_project,
@@ -18,9 +24,11 @@ __all__ = [
     "rename_project",
     "delete_project",
     "apply_scope",
-    "apply_profile_field",
     "parse_scope",
-    "parse_target_margin",
+    "apply_decision_parameter",
+    "extract_decision_parameters",
+    "parse_decision_parameter",
+    "DECISION_PARAMETERS",
     "apply_product",
     "top_products",
 ]
