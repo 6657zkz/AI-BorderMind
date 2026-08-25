@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session as DbSession
 
+from ..application import ResearchRunConflict, ResearchRunService
 from ..db import AnalysisRun, get_db
 from ..evidence import (
     answer_clarification,
@@ -77,40 +78,24 @@ def submit_clarification(
         raise HTTPException(status_code=422, detail="决策参数不存在或格式无效")
 
     user_message = append_message(db, run.session_id, "user", body.value)
-    record = answer_clarification(
-        db,
-        run_id=run_id,
-        field_id=body.field_id,
-        answer=body.value,
-        message_id=user_message.id,
-    )
-    if record is None:
-        raise HTTPException(status_code=409, detail="该澄清项不存在或已处理")
-    project_ctx = resolve_context(db, run.session_id)
-    run.user_message_id = user_message.id
-    run.project_context_json = project_ctx
-    run.status = "planning"
-    run.completed_at = None
-    append_run_event(db, run_id=run_id, event_type="run_resumed", payload={"field_id": body.field_id})
-    db.commit()
-
-    from ..graph import run_research
-
     try:
-        result = run_research(run.query, project_ctx, run_id=run_id)
-        final = result.get("final") or {}
-        complete_analysis_run(
+        run = ResearchRunService().resume(
             db,
             run_id=run_id,
-            final=final,
-            decision_graph=result.get("decision_graph"),
-            execution_plan=result.get("execution_plan"),
+            field_id=body.field_id,
+            answer=body.value,
+            user_message_id=user_message.id,
+            project_ctx=project_ctx,
         )
+    except ResearchRunConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    try:
+        final = ResearchRunService().execute(db, run=run)
         append_message(db, run.session_id, "assistant", json.dumps(final, ensure_ascii=False))
-    except Exception as exc:
-        fail_analysis_run(db, run_id=run_id, error={"message": str(exc), "code": "workflow_error"})
+    except Exception:
         raise
-    return {"run_id": run_id, "field_id": record.field_id, "status": "resumed", "final": final}
+    return {"run_id": run_id, "field_id": body.field_id, "status": "resumed", "final": final}
 
 
 @router.get("/{run_id}/events")

@@ -17,6 +17,7 @@ class ResearchState(TypedDict, total=False):
     query: str
     run_id: str | None
     project_ctx: dict[str, Any]
+    history: list[dict[str, str]]
     mode: str                       # research / chat
     rewritten: str | None           # 统一任务标题（重写需求产出）
     decision_graph: dict[str, Any] | None

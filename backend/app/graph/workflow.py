@@ -44,11 +44,13 @@ def run_research(
     project_ctx: dict[str, Any] | None = None,
     *,
     run_id: str | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     initial: dict[str, Any] = {
         "query": query,
         "run_id": run_id,
         "project_ctx": project_ctx or {},
+        "history": history or [],
         "mode": "research",
         "decision_graph": None,
         "execution_plan": None,

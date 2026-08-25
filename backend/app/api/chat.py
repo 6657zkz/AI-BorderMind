@@ -20,14 +20,9 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
+from ..application import ResearchRunConflict, ResearchRunService
 from ..db import AnalysisClarification, AnalysisRun, SessionLocal, get_db
-from ..evidence import (
-    answer_clarification,
-    complete_analysis_run,
-    create_analysis_run,
-    fail_analysis_run,
-    get_run_snapshot,
-)
+from ..evidence import get_run_snapshot
 from ..graph import workflow
 from ..project import (
     apply_decision_parameter,
@@ -38,7 +33,7 @@ from ..project import (
     parse_scope,
     top_products,
 )
-from ..session import append_message, get_session, resolve_context, update_message
+from ..session import append_message, build_transcript, get_session, resolve_context, update_message
 from .schemas import ChatRequest
 
 logger = logging.getLogger("chuhai.api")
@@ -52,11 +47,17 @@ _ROLE_LABEL = {
 }
 
 
-def _initial_state(message: str, project_ctx: dict[str, Any], run_id: str | None = None) -> dict[str, Any]:
+def _initial_state(
+    message: str,
+    project_ctx: dict[str, Any],
+    run_id: str | None = None,
+    history: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
     return {
         "query": message,
         "run_id": run_id,
         "project_ctx": project_ctx,
+        "history": history or [],
         "decision_graph": None,
         "execution_plan": None,
         "clarifications": [],
@@ -90,7 +91,7 @@ def _resolve_clarification_answer(
     db: DbSession,
     session_id: str,
     message: str,
-) -> tuple[dict[str, Any], str, str | None] | None:
+) -> tuple[dict[str, Any], str, str, str] | None:
     rows = db.execute(
         select(AnalysisRun, AnalysisClarification)
         .join(AnalysisClarification, AnalysisClarification.run_id == AnalysisRun.run_id)
@@ -109,7 +110,7 @@ def _resolve_clarification_answer(
     project_ctx = resolve_context(db, session_id)
     if apply_decision_parameter(db, project_ctx["project_id"], clarification.field_id, message) is None:
         return None
-    return resolve_context(db, session_id), run.query, run.run_id
+    return resolve_context(db, session_id), run.query, run.run_id, clarification.field_id
 
 
 def _resolve_scope(db: DbSession, session_id: str, message: str) -> tuple[dict[str, Any], str | None]:
@@ -157,13 +158,15 @@ def api_chat(body: ChatRequest, db: DbSession = Depends(get_db)):
     session = get_session(db, body.session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="会话不存在")
+    transcript = build_transcript(db, body.session_id)
     clarification_answer = _resolve_clarification_answer(db, body.session_id, body.message)
     resumed_run_id = None
+    resumed_field_id = None
     if clarification_answer is None:
         project_ctx, ack = _resolve_scope(db, body.session_id, body.message)
         query = body.message
     else:
-        project_ctx, query, resumed_run_id = clarification_answer
+        project_ctx, query, resumed_run_id, resumed_field_id = clarification_answer
         ack = None
     user_message = append_message(db, body.session_id, "user", body.message)
     if ack:
@@ -171,51 +174,33 @@ def api_chat(body: ChatRequest, db: DbSession = Depends(get_db)):
         append_message(db, body.session_id, "assistant", json.dumps(final, ensure_ascii=False))
         return {"session_id": body.session_id, "final": final}
 
-    if resumed_run_id:
-        run = db.get(AnalysisRun, resumed_run_id)
-        if run is None:
-            raise HTTPException(status_code=409, detail="等待澄清的研判运行不存在")
-        answer = answer_clarification(
-            db,
-            run_id=run.run_id,
-            field_id="target_margin",
-            answer=body.message,
-            message_id=user_message.id,
-        )
-        if answer is None:
-            raise HTTPException(status_code=409, detail="该澄清项不存在或已处理")
-        run.user_message_id = user_message.id
-        run.project_context_json = project_ctx
-        run.status = "planning"
-        run.completed_at = None
-        db.commit()
-    else:
-        run = create_analysis_run(
-            db,
-            session_id=body.session_id,
-            user_message_id=user_message.id,
-            query=query,
-            project_ctx=project_ctx,
-        )
-    from ..graph import run_research
-
+    service = ResearchRunService()
     try:
-        result = run_research(query, project_ctx, run_id=run.run_id)
-        final = result.get("final") or {}
-        complete_analysis_run(
-            db,
-            run_id=run.run_id,
-            final=final,
-            decision_graph=result.get("decision_graph"),
-            execution_plan=result.get("execution_plan"),
-        )
-    except Exception as exc:
-        fail_analysis_run(
-            db,
-            run_id=run.run_id,
-            error={"message": str(exc), "code": "workflow_error"},
-        )
-        raise
+        if resumed_run_id:
+            run = service.resume(
+                db,
+                run_id=resumed_run_id,
+                field_id=resumed_field_id,
+                answer=body.message,
+                user_message_id=user_message.id,
+                project_ctx=project_ctx,
+            )
+        else:
+            run = service.create(
+                db,
+                session_id=body.session_id,
+                user_message_id=user_message.id,
+                query=query,
+                project_ctx=project_ctx,
+            )
+    except ResearchRunConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    final = service.execute(
+        db,
+        run=run,
+        history=[*transcript, {"role": "user", "content": body.message}],
+    )
 
     append_message(db, body.session_id, "assistant", json.dumps(final, ensure_ascii=False))
     return {"session_id": body.session_id, "run_id": run.run_id, "final": final}
@@ -229,44 +214,46 @@ async def api_chat_stream(body: ChatRequest, db: DbSession = Depends(get_db)):
     session = get_session(db, body.session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="会话不存在")
+    transcript = build_transcript(db, body.session_id)
     clarification_answer = _resolve_clarification_answer(db, body.session_id, body.message)
     resumed_run_id = None
+    resumed_field_id = None
     if clarification_answer is None:
         project_ctx, ack = _resolve_scope(db, body.session_id, body.message)
         query = body.message
     else:
-        project_ctx, query, resumed_run_id = clarification_answer
+        project_ctx, query, resumed_run_id, resumed_field_id = clarification_answer
         ack = None
     user_message = append_message(db, body.session_id, "user", body.message)
+    service = ResearchRunService()
     analysis_run = None
     if not ack:
-        if resumed_run_id:
-            analysis_run = db.get(AnalysisRun, resumed_run_id)
-            if analysis_run is None:
-                raise HTTPException(status_code=409, detail="等待澄清的研判运行不存在")
-            answer = answer_clarification(
-                db,
-                run_id=analysis_run.run_id,
-                field_id="target_margin",
-                answer=body.message,
-                message_id=user_message.id,
-            )
-            if answer is None:
-                raise HTTPException(status_code=409, detail="该澄清项不存在或已处理")
-            analysis_run.user_message_id = user_message.id
-            analysis_run.project_context_json = project_ctx
-            analysis_run.status = "planning"
-            analysis_run.completed_at = None
-            db.commit()
-        else:
-            analysis_run = create_analysis_run(
-                db,
-                session_id=body.session_id,
-                user_message_id=user_message.id,
-                query=query,
-                project_ctx=project_ctx,
-            )
-    initial = _initial_state(query, project_ctx, run_id=analysis_run.run_id if analysis_run else None)
+        try:
+            if resumed_run_id:
+                analysis_run = service.resume(
+                    db,
+                    run_id=resumed_run_id,
+                    field_id=resumed_field_id,
+                    answer=body.message,
+                    user_message_id=user_message.id,
+                    project_ctx=project_ctx,
+                )
+            else:
+                analysis_run = service.create(
+                    db,
+                    session_id=body.session_id,
+                    user_message_id=user_message.id,
+                    query=query,
+                    project_ctx=project_ctx,
+                )
+        except ResearchRunConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+    initial = _initial_state(
+        query,
+        project_ctx,
+        run_id=analysis_run.run_id if analysis_run else None,
+        history=[*transcript, {"role": "user", "content": body.message}],
+    )
     loading = {
         "kind": "loading",
         "streaming": True,
@@ -345,7 +332,7 @@ async def api_chat_stream(body: ChatRequest, db: DbSession = Depends(get_db)):
                             continue
                         if analysis_run and not terminal_persisted.is_set():
                             with SessionLocal() as worker_db:
-                                complete_analysis_run(
+                                service.complete(
                                     worker_db,
                                     run_id=analysis_run.run_id,
                                     final=final,
@@ -361,7 +348,7 @@ async def api_chat_stream(body: ChatRequest, db: DbSession = Depends(get_db)):
             if analysis_run and not terminal_persisted.is_set():
                 status = "timed_out" if code == "workflow_timeout" else "failed"
                 with SessionLocal() as worker_db:
-                    fail_analysis_run(
+                    service.fail(
                         worker_db,
                         run_id=analysis_run.run_id,
                         error={"message": message, "code": code},

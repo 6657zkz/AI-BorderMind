@@ -2,6 +2,7 @@
 
 from .manager import (
     append_message,
+    build_transcript,
     create_session,
     delete_session,
     get_session,
@@ -15,6 +16,7 @@ from .manager import (
 
 __all__ = [
     "append_message",
+    "build_transcript",
     "create_session",
     "delete_session",
     "get_session",

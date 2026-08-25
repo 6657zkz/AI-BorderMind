@@ -134,6 +134,29 @@ def latest_pending_clarification(db: DbSession, session_id: str) -> tuple[dict[s
     return clarifications[0], previous_query
 
 
+def build_transcript(
+    db: DbSession,
+    session_id: str,
+    *,
+    max_messages: int = 24,
+    max_chars: int = 12_000,
+) -> list[dict[str, str]]:
+    rows = db.execute(
+        select(Message)
+        .where(Message.session_id == session_id)
+        .order_by(Message.id.desc())
+        .limit(max_messages)
+    ).scalars().all()
+    transcript: list[dict[str, str]] = []
+    remaining = max_chars
+    for message in rows:
+        if len(message.content) > remaining:
+            break
+        transcript.append({"role": message.role, "content": message.content})
+        remaining -= len(message.content)
+    return list(reversed(transcript))
+
+
 def resolve_context(db: DbSession, session_id: str) -> dict[str, Any]:
     """会话 → 项目上下文（graph 的 project_ctx 源）。"""
     session = get_session(db, session_id)

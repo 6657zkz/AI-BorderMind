@@ -46,7 +46,11 @@ def plan_node(state: dict[str, Any]) -> dict[str, Any]:
 
 def rewrite_node(state: dict[str, Any]) -> dict[str, Any]:
     try:
-        planned = plan_request(state["query"], state.get("project_ctx") or {})
+        planned = plan_request(
+            state["query"],
+            state.get("project_ctx") or {},
+            history=state.get("history") or [],
+        )
     except PlanningError as exc:
         logger.info("planning blocked query=%r error=%s", state["query"], exc)
         return {"clarification": str(exc)}
@@ -108,7 +112,8 @@ def final_node(state: dict[str, Any]) -> dict[str, Any]:
     if state["mode"] == "chat":
         try:
             answer = get_client().complete(
-                [{"role": "user", "content": state["query"]}], system=CHAT_SYSTEM
+                state.get("history") or [{"role": "user", "content": state["query"]}],
+                system=CHAT_SYSTEM,
             )
         except LLMError as exc:
             answer = f"（LLM 未配置，无法回答）{exc}"

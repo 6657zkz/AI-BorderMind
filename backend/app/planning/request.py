@@ -39,9 +39,10 @@ def plan_request(
     project_ctx: dict[str, Any] | None = None,
     *,
     llm: JsonCompleter | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> PlannedRequest:
     project_ctx = project_ctx or {}
-    candidate = _candidate(query, project_ctx, llm or get_client())
+    candidate = _candidate(query, project_ctx, llm or get_client(), history or [])
     graph = _decision_graph(query, project_ctx, candidate)
     profile = {
         **dict(project_ctx.get("profile") or {}),
@@ -54,7 +55,7 @@ def plan_request(
     )
 
 
-def _candidate(query: str, project_ctx: dict[str, Any], llm: JsonCompleter) -> dict[str, Any]:
+def _candidate(query: str, project_ctx: dict[str, Any], llm: JsonCompleter, history: list[dict[str, str]]) -> dict[str, Any]:
     decision_types = "\n".join(
         f"- {definition.id}: {definition.name}"
         for definition in DECISION_TYPES.values()
@@ -84,9 +85,12 @@ def _candidate(query: str, project_ctx: dict[str, Any], llm: JsonCompleter) -> d
         "market_code": project_ctx.get("market_code"),
         "profile": project_ctx.get("profile") or {},
     }
+    messages = history or []
+    if not messages or messages[-1] != {"role": "user", "content": query}:
+        messages = [*messages, {"role": "user", "content": query}]
     raw = llm.complete_json(
-        [{"role": "user", "content": f"项目范围：{scope}\n用户请求：{query}"}],
-        system=system,
+        messages,
+        system=f"{system}\n项目范围：{scope}\n当前研判问题：{query}",
         temperature=0,
     )
     if not isinstance(raw, dict):

@@ -179,6 +179,7 @@ def answer_clarification(
     field_id: str,
     answer: Any,
     message_id: int | None = None,
+    commit: bool = True,
 ) -> AnalysisClarification | None:
     record = db.execute(
         select(AnalysisClarification).where(
@@ -199,8 +200,11 @@ def answer_clarification(
         event_type="clarification_answered",
         payload={"field_id": field_id},
     )
-    db.commit()
-    db.refresh(record)
+    if commit:
+        db.commit()
+        db.refresh(record)
+    else:
+        db.flush()
     return record
 
 
