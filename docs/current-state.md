@@ -1,0 +1,68 @@
+# 当前实现状态
+
+> 状态：`implemented` 的判断以当前代码和测试为证据。本文件不描述目标架构，不将路线图、目录骨架或测试 fixture 视为产品能力。
+
+## 已验证范围
+
+### 工程配置
+
+- 后端位于 `backend/`。
+- [backend/pyproject.toml](../backend/pyproject.toml) 要求 Python 3.11+，并配置 pytest 从 `backend/tests/` 发现测试。
+
+### 能力目录契约
+
+[backend/app/domain/capabilities/contracts.py](../backend/app/domain/capabilities/contracts.py) 已实现纯领域、只读的目录契约：
+
+- `InputRequirement`：任务输入与是否可澄清。
+- `OutputField`：任务结构化输出字段。
+- `TaskContractDefinition`：任务目的、输入、依赖、允许能力/角色、输出与策略声明。
+- `DecisionTypeDefinition`：决策类型的任务蓝图和允许范围。
+- `CapabilityCatalog`：planning 读取目录元数据的协议。
+
+### Planning 领域内核
+
+[backend/app/domain/planning/](../backend/app/domain/planning/) 已实现无网络、无数据库、无框架依赖的规划逻辑：
+
+- `DecisionGraph`、触发上下文、证据需求、实体比较关系及其快照恢复。
+- 针对目录版本、决策类型、范围、约束、实体、指标、证据和比较关系的白名单校验。
+- `ExecutionPlan`、`PlanNode`、`InputBinding` 及其快照恢复。
+- 从决策类型任务蓝图编译计划，检查未知任务/能力、无效依赖、重复任务与依赖环。
+- 稳定拓扑排序；无依赖节点可由未来运行器并行处理。
+- 受控输入绑定：`graph.scope` → `graph.constraints` → `graph.context_snapshot` → 项目画像 → 直接依赖的已声明输出。
+- 结构化结果：`Planned`、`NeedsClarification`、`Rejected`。
+
+完整模块边界见 [contracts/planning.md](contracts/planning.md)。
+
+### 测试证据
+
+从 `backend/` 运行：
+
+```bash
+python -m pytest
+```
+
+当前共有 10 项 planning 单元测试，覆盖：
+
+- Graph 校验、目录版本不匹配和未知引用拒绝。
+- Graph/Plan 快照往返及深拷贝。
+- 稳定 DAG 编译、并行 sibling 节点和上游输出绑定。
+- 可澄清与不可澄清输入缺失。
+- 未知 Operator 和依赖环拒绝。
+
+## 明确未实现
+
+以下均为 `planned`，不得视为当前功能：
+
+- 真实 `CapabilityCatalog` 注册表；测试中的 `InMemoryCatalog` 仅为 [planning fixture](../backend/tests/domain/planning/conftest.py)。
+- 项目画像、会话、消息和受控识别。
+- API、SSE、认证、应用服务和 `main.py`。
+- AnalysisRun/NodeRun 状态机、DAG 调度、重试、恢复、取消和超时。
+- 数据库、仓储、迁移、Evidence 持久化、租户隔离、权限和审计。
+- Operator 实现、外部数据接入、专家 Playbook 和业务结论。
+- 监控信号、复合事件、触发策略和去重/冷却。
+- LLM、工作流、后台调度和部署适配器。
+- 前端、`planning/text2sql/`、MetricQueryGraph 和任意自由 SQL。
+
+## 解释规则
+
+[architecture.md](architecture.md) 中的模块、目标目录、API 和状态机都是未来设计约束，不是当前文件清单或运行能力。实现任何新范围前，先检查 [roadmap.md](roadmap.md)、相关模块契约和 ADR。
