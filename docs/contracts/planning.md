@@ -25,7 +25,7 @@ planning 不负责：
 - LLM 调用、网络请求、文件读取、任意 SQL 或 `text2sql`。
 - Operator 执行、专家调用、真实数据查询或业务结论生成。
 - AnalysisRun/NodeRun 状态机、DAG 调度、重试、取消、超时、恢复或持久化。
-- 提供真实 `CapabilityCatalog`；测试中的内存目录是 `test-only` fixture。
+- 提供真实 `CapabilityCatalog`；目录由 capabilities 模块构建，测试中的内存目录仍是 `test-only` fixture。
 
 ## 公开接口
 

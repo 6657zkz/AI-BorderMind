@@ -9,6 +9,17 @@
 - 后端位于 `backend/`。
 - [backend/pyproject.toml](../backend/pyproject.toml) 要求 Python 3.11+，并配置 pytest 从 `backend/tests/` 发现测试。
 
+### 能力目录
+
+[backend/app/domain/capabilities/register.py](../backend/app/domain/capabilities/register.py) 已实现按类型组织的静态能力定义、构建期注册和冻结只读目录：
+
+- `CapabilityRegistry`：显式注册实体、指标、Operator、专家角色、Evidence、任务契约和决策类型。
+- `FrozenCapabilityCatalog`：实现 planning 所需的只读目录协议，目录版本为 `catalog-v1`。
+- `promotion-response`：包含价格带、毛利边界和促销响应建议的完整静态契约组合。
+- 注册阶段拒绝重复 ID 和无效跨定义引用；不执行 Operator、专家或外部 I/O。
+
+定义按 `decision_types/`、`task_contracts/`、`operators/`、`experts/` 和 `evidence/` 分目录保存，统一由 `register.py` 显式装配。
+
 ### 能力目录契约
 
 [backend/app/domain/capabilities/contracts.py](../backend/app/domain/capabilities/contracts.py) 已实现纯领域、只读的目录契约：
@@ -41,7 +52,7 @@
 python -m pytest
 ```
 
-当前共有 10 项 planning 单元测试，覆盖：
+当前共有 17 项测试，覆盖 planning 单元测试以及真实能力目录的注册、冻结和组合编译：
 
 - Graph 校验、目录版本不匹配和未知引用拒绝。
 - Graph/Plan 快照往返及深拷贝。
@@ -53,12 +64,12 @@ python -m pytest
 
 以下均为 `planned`，不得视为当前功能：
 
-- 真实 `CapabilityCatalog` 注册表；测试中的 `InMemoryCatalog` 仅为 [planning fixture](../backend/tests/domain/planning/conftest.py)。
+- `CapabilityCatalog` 的动态管理和持久化注册表；测试中的 `InMemoryCatalog` 仅为 [planning fixture](../backend/tests/domain/planning/conftest.py)。
 - 项目画像、会话、消息和受控识别。
 - API、SSE、认证、应用服务和 `main.py`。
 - AnalysisRun/NodeRun 状态机、DAG 调度、重试、恢复、取消和超时。
 - 数据库、仓储、迁移、Evidence 持久化、租户隔离、权限和审计。
-- Operator 实现、外部数据接入、专家 Playbook 和业务结论。
+- Operator 执行实现、外部数据接入、专家 LLM/Playbook 执行和业务结论生成。
 - 监控信号、复合事件、触发策略和去重/冷却。
 - LLM、工作流、后台调度和部署适配器。
 - 前端、`planning/text2sql/`、MetricQueryGraph 和任意自由 SQL。

@@ -94,6 +94,42 @@ class DecisionTypeDefinition:
     allowed_comparison_kinds: frozenset[str] = frozenset()
 
 
+@dataclass(frozen=True)
+class EntityDefinition:
+    entity_id: str
+    purpose: str
+
+
+@dataclass(frozen=True)
+class MetricDefinition:
+    metric_id: str
+    purpose: str
+    semantic_type: str
+
+
+@dataclass(frozen=True)
+class OperatorDefinition:
+    operator_id: str
+    purpose: str
+    input_keys: tuple[str, ...] = ()
+    output_keys: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ExpertRoleDefinition:
+    expert_role_id: str
+    purpose: str
+    required_evidence_ids: frozenset[str] = frozenset()
+    output_fields: tuple[OutputField, ...] = ()
+
+
+@dataclass(frozen=True)
+class EvidenceDefinition:
+    evidence_id: str
+    purpose: str
+    metric_ids: frozenset[str] = frozenset()
+
+
 class CapabilityCatalog(Protocol):
     """定义 planning 读取能力目录元数据的只读接口。"""
 

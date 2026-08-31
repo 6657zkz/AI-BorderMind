@@ -23,6 +23,7 @@
 
 ## 已实现模块
 
+- [capabilities](capabilities.md) — `implemented`，按类型组织的静态能力定义、构建期注册和冻结只读目录。
 - [planning](planning.md) — `implemented`，纯领域的业务图校验和执行计划编译。
 
 ## 变更规则
