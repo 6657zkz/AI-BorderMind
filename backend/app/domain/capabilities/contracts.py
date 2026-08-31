@@ -96,37 +96,63 @@ class DecisionTypeDefinition:
 
 @dataclass(frozen=True)
 class EntityDefinition:
+    """能力目录中的业务实体定义。"""
+
+    # 实体在目录中的稳定唯一标识，例如 competitor-product。
     entity_id: str
+    # 实体的业务用途说明，供规划审阅和后续展示使用。
     purpose: str
 
 
 @dataclass(frozen=True)
 class MetricDefinition:
+    """能力目录中的业务指标定义。"""
+
+    # 指标在目录中的稳定唯一标识，例如 price。
     metric_id: str
+    # 指标的业务含义和使用目的。
     purpose: str
+    # 指标的语义类型，例如 currency_amount 或 percentage。
     semantic_type: str
 
 
 @dataclass(frozen=True)
 class OperatorDefinition:
+    """受控数据算子的静态元数据，不包含实际执行逻辑。"""
+
+    # Operator 在目录中的稳定唯一标识。
     operator_id: str
+    # Operator 提供的确定性数据能力说明。
     purpose: str
+    # Operator 允许接收的输入字段名；不代表具体输入值。
     input_keys: tuple[str, ...] = ()
+    # Operator 允许产出的结构化字段名；不代表本次已经执行。
     output_keys: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class ExpertRoleDefinition:
+    """专家角色的静态 Playbook 契约，不包含 LLM 或 Agent 实例。"""
+
+    # 专家角色在目录中的稳定唯一标识。
     expert_role_id: str
+    # 专家角色负责的业务判断范围。
     purpose: str
+    # 专家判断前必须具备的证据类型。
     required_evidence_ids: frozenset[str] = frozenset()
+    # 专家角色允许产出的结构化字段。
     output_fields: tuple[OutputField, ...] = ()
 
 
 @dataclass(frozen=True)
 class EvidenceDefinition:
+    """规划或任务可以引用的一类证据定义。"""
+
+    # Evidence 在目录中的稳定唯一标识。
     evidence_id: str
+    # Evidence 支持的业务用途。
     purpose: str
+    # 该 Evidence 支持或引用的已注册指标。
     metric_ids: frozenset[str] = frozenset()
 
 

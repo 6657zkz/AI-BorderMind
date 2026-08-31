@@ -1,3 +1,5 @@
+"""能力目录的公共契约、注册器和只读目录导出。"""
+
 from .contracts import (
     CapabilityCatalog,
     DecisionTypeDefinition,
