@@ -30,7 +30,18 @@
 - `DecisionTypeDefinition`：决策类型的任务蓝图和允许范围。
 - `CapabilityCatalog`：planning 读取目录元数据的协议。
 
-### Planning 领域内核
+### Evidence 纯领域模型
+
+[backend/app/domain/evidence/](../backend/app/domain/evidence/) 已实现运行时 Evidence 的纯领域模型：
+
+- `EvidenceEntry`：记录一次 Operator 结果的来源、结构化 payload、状态、时间、质量标记和稳定 payload digest，并提供深度不可变和快照恢复。
+- `EvidencePackage`：按专家角色保存本次授权消费的 Entry ID 子集，不复制 Evidence payload；可使用调用方提供的 Entry 集合执行完整性校验。
+- `EvidenceChain`：聚合一个 Run 的 Entry、Package 和 `derived_from` lineage，校验租户/Run/scope/目录版本隔离、唯一性和无环关系；增补操作返回新聚合。
+
+该模块只实现无副作用领域对象、内在不变量和快照，不执行 Operator，不创建 AnalysisRun，不访问数据库或 LLM。
+
+完整模块边界见 [contracts/evidence.md](contracts/evidence.md)。
+
 
 [backend/app/domain/planning/](../backend/app/domain/planning/) 已实现无网络、无数据库、无框架依赖的规划逻辑：
 
@@ -68,7 +79,7 @@ python -m pytest
 - 项目画像、会话、消息和受控识别。
 - API、SSE、认证、应用服务和 `main.py`。
 - AnalysisRun/NodeRun 状态机、DAG 调度、重试、恢复、取消和超时。
-- 数据库、仓储、迁移、Evidence 持久化、租户隔离、权限和审计。
+- 数据库、仓储、迁移、Evidence 持久化、Evidence 读取、租户隔离、权限和审计。
 - Operator 执行实现、外部数据接入、专家 LLM/Playbook 执行和业务结论生成。
 - 监控信号、复合事件、触发策略和去重/冷却。
 - LLM、工作流、后台调度和部署适配器。

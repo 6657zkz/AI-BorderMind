@@ -7,7 +7,7 @@ AI-BorderMind 是一个面向跨境经营决策的受控分析系统。当前工
 - 能力目录的只读协议、构建期注册器、冻结目录及 `promotion-response` 静态定义组合。
 - `DecisionGraph` 的白名单校验和可回放快照。
 - `ExecutionPlan` 的确定性 DAG 编译、输入绑定、依赖环检测和快照。
-- 结构化的成功、澄清与拒绝规划结果。
+- `EvidenceEntry`、`EvidencePackage` 和 `EvidenceChain` 的纯领域模型、引用完整性、Run 边界隔离、lineage 校验及快照恢复。
 
 在 `backend/` 中验证：
 
@@ -17,7 +17,7 @@ python -m pytest
 
 ## 当前未实现
 
-真实能力目录的动态管理、应用服务、HTTP/SSE、数据库、AnalysisRun 调度与恢复、Operator 执行、证据存储、LLM、监控和前端均尚未实现。测试中的内存目录仅为 fixture，不是产品注册表。
+真实能力目录的动态管理、应用服务、HTTP/SSE、数据库、AnalysisRun 调度与恢复、Operator 执行、证据持久化与读取、Evidence 生命周期服务、LLM、监控和前端均尚未实现。当前 Evidence 模块只提供纯领域模型，不代表证据已经由真实 Operator 产生或持久化；测试中的内存目录仅为 fixture，不是产品注册表。
 
 ## 文档入口
 

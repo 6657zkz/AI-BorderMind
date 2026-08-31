@@ -25,6 +25,7 @@
 
 - [capabilities](capabilities.md) — `implemented`，按类型组织的静态能力定义、构建期注册和冻结只读目录。
 - [planning](planning.md) — `implemented`，纯领域的业务图校验和执行计划编译。
+- [evidence](evidence.md) — `implemented`，运行时 EvidenceEntry、专家 EvidencePackage 和 Run 级 EvidenceChain 纯领域模型。
 
 ## 变更规则
 
